@@ -820,7 +820,7 @@ The output is like this:
 
 ## Hybrid search thresholds
 
-The only available search threshold is `max vector distance`, which will set the maximum allowable distance for the vector search component.
+The available search thresholds are `distance` and `certainty` on the vector search component. A `distance` sets the maximum allowable distance for that component; `certainty` requires a `cosine` index.
 
 <Tabs className="code" groupId="languages">
   <TabItem value="py" label="Python">
@@ -977,11 +977,11 @@ Optionally, use `offset` to paginate the results.
 
 ## Limit result groups
 
-To limit results to groups with similar distances from the query, use the [`autocut`](../api/graphql/additional-operators.md#autocut) filter. Specify the `Relative Score Fusion` ranking method when you use autocut with hybrid search.
+To limit results to groups with similar distances from the query, use the [`autocut`](../api/graphql/additional-operators.md#autocut) filter. Weaviate recommends the `Relative Score Fusion` ranking method when you use autocut with hybrid search.
 
 :::info
 
-Autocut requires `Relative Score Fusion` method because it uses actual similarity scores to detect cutoff points. Autocut shouldn't be used with `Ranked Fusion` as this fusion method relies on ranking positions, not similarity scores.
+`Relative Score Fusion` is a better fit for autocut because the fused values are actual similarity scores, which autocut can compare. `Ranked Fusion` combines rank positions instead, so its output gives autocut less to work with. Weaviate does not block autocut with `Ranked Fusion`.
 
 To learn more about the different fusion algorithms, visit the [search operators reference page](/weaviate/api/graphql/search-operators#fusion-algorithms).
 

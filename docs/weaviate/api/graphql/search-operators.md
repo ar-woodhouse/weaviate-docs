@@ -429,11 +429,11 @@ import GraphQLFiltersHybridProperties from '/_includes/code/graphql.filters.hybr
 
 <GraphQLFiltersHybridProperties/>
 
-### Oversearch with `relativeScoreFusion`
+### Oversearch in hybrid search
 
-When `relativeScoreFusion` is used as the `fusionType` with a small search `limit`, a result set can be very sensitive to the limit parameter due to the normalization of the scores.
+With a small search `limit`, a hybrid result set can be very sensitive to the limit parameter, because the fusion step compares each result against the other results it received.
 
-To mitigate this effect, Weaviate automatically performs a search with a higher limit (100) and then trims the results down to the requested limit.
+To mitigate this effect, Weaviate performs each sub-search with a higher limit, `max(QUERY_HYBRID_MAXIMUM_RESULTS, limit + offset)`, and then trims the fused results down to the requested limit. `QUERY_HYBRID_MAXIMUM_RESULTS` defaults to `100` and can be changed in the deployment configuration. The oversearch applies whichever `fusionType` you use.
 
 ### BM25 search operator
 
