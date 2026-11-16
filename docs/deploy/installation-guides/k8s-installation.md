@@ -193,6 +193,10 @@ See the [1.25 migration guide for Kubernetes](../migration/weaviate-1-25.md) for
 
 In some circumstances, you may wish, or need, to use EFS (Amazon Elastic File System) with Weaviate. And we note in the case of AWS Fargate, you must create the [PV (persistent volume)](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) manually, as the PVC will NOT create a PV for you.
 
+:::caution EFS is a network file system
+[Resource planning](/weaviate/concepts/resources.md#the-role-of-memory) recommends `Ext4` or `XFS` on `EBS` instead of NFS-style storage, because the default `mmap` access strategy performs poorly over a network file system. Use EFS only where a `ReadWriteMany` volume is required, for example on AWS Fargate.
+:::
+
 To use EFS with Weaviate, you need to:
 
 - Create an EFS file system.

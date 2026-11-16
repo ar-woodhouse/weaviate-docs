@@ -132,8 +132,8 @@ Set `DISK_USE_WARNING_PERCENTAGE` and `DISK_USE_READONLY_PERCENTAGE` to adjust t
 
 When running Weaviate, its memory footprint is a common bottleneck. As a rule of thumb, you can expect to need:
 
-- 6GB of memory for 1 million, 1024-dimensional vectors
-- 1.5GB of memory for 1 million, 256-dimensional vectors
+- 8GB of memory for 1 million, 1024-dimensional vectors
+- 2GB of memory for 1 million, 256-dimensional vectors
 - 2GB of memory 1 million, 1024-dimensional vectors with quantization enabled
 
 <details>
@@ -143,7 +143,7 @@ Without quantization, each vector is stored as an n-dimensional float. For 1024-
 
 - 4 bytes per float * 1024 dimensions * 1M vectors = 4GB
 
-We add some overhead for the index structure, and additional overheads, which brings us to the approximate figure of 6GB.
+The [resource planning](../concepts/resources.md) rule of thumb doubles the raw vector size to allow for the index structure and other overheads, which brings us to the approximate figure of 8GB.
 
 </details>
 

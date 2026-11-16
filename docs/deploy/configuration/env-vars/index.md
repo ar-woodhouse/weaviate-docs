@@ -75,7 +75,7 @@ import APITable from '@site/src/components/APITable';
 | `LAZY_LOAD_SHARD_SIZE_THRESHOLD_GB` | Total shard size (in GB) for a collection before lazy shard loading activates. Default: `100`. See [dynamic lazy shard loading](/weaviate/concepts/storage#dynamic-lazy-shard-loading). <br/>Added in `v1.36.6` | `string - number` | `100` |
 | `LICENSE_KEY` | The Weaviate license key that activates the [Enterprise Edition](/deploy/enterprise). Mutually exclusive with `LICENSE_KEY_FILE`: if you set both, Weaviate fails to start.<br/>Added in `v1.40` | `string` | `<your-license-key>` |
 | `LICENSE_KEY_FILE` | Path to a file that contains the Weaviate license key that activates the [Enterprise Edition](/deploy/enterprise). Mutually exclusive with `LICENSE_KEY`. If Weaviate can't read the file, it fails to start.<br/>Added in `v1.40` | `string - file path` | `/etc/weaviate/license.key` |
-| `LIMIT_RESOURCES` | If `true`, Weaviate will automatically attempt to auto-detect and limit the amount of resources (memory & threads) it uses to (0.8 * total memory) and (number of cores-1). It will override any `GOMEMLIMIT` values, however it will respect `GOMAXPROCS` values. | `boolean` | `false` |
+| `LIMIT_RESOURCES` | If `true`, Weaviate will automatically attempt to auto-detect and limit the amount of resources (memory & threads) it uses to (0.8 * the container memory limit) and the container's CPU quota. It will override any `GOMEMLIMIT` values, however it will respect `GOMAXPROCS` values. | `boolean` | `false` |
 | `LOG_FORMAT` | Set the Weaviate logging format <br/><br/>`json` (default): Outputs log data in JSON. e.g. `{"action":"startup","level":"debug","msg":"finished initializing modules","time":"2023-04-12T05:07:43Z"}` <br/>`text`: Outputs log data to a string. e.g. `time="2023-04-12T04:54:23Z" level=debug msg="finished initializing modules" action=startup` | `string` |  |
 | `LOG_LEVEL` | Sets the Weaviate logging level. Default: `info`<br/><br/>`panic`: Panic entries only. <br/>`fatal`: Fatal entries only. <br/> `error`: Error entries only. <br/>`warning`: Warning entries only. <br/>`info`: General operational entries. <br/> `debug`: Very verbose logging. <br/>`trace`: Even finer-grained informational events than `debug`. | `string` | |
 | `MAXIMUM_ALLOWED_COLLECTIONS_COUNT` | Maximum allowed number of collections in a Weaviate node. A value of `-1` removes the limit. Default: `-1` (unlimited) <br/><br/>Instead of raising the collections count limit, consider [rethinking your architecture](/weaviate/starter-guides/managing-collections/collections-scaling-limits.mdx).<br/>Added in `v1.30`| `string - number` | `20` |
@@ -257,7 +257,7 @@ For more information on authentication and authorization, see the [Authenticatio
 | Variable | Description | Type | Example Value |
 | --- | --- | --- | --- |
 | `AUTHORIZATION_RBAC_ENABLED` | Enable RBAC authorization scheme (mutually exclusive with `AUTHORIZATION_ADMINLIST_ENABLED`). | `boolean` | `true` |
-| `AUTHORIZATION_RBAC_ROOT_USERS` | Users with the built-in root/administrator role when RBAC scheme used. At least one root user must be defined with RBAC. | `string - comma-separated list` | `admin-user,another-admin-user` |
+| `AUTHORIZATION_RBAC_ROOT_USERS` | Users with the built-in root/administrator role when the RBAC scheme is used. Configuring at least one root user was required in `v1.30.6`, `v1.31.0` and earlier; the requirement was removed in `v1.30.7` and `v1.31.1`. | `string - comma-separated list` | `admin-user,another-admin-user` |
 
 ```mdx-code-block
 </APITable>

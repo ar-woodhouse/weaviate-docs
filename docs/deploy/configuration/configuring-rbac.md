@@ -15,7 +15,7 @@ Weaviate comes with a set of predefined roles. These roles are:
 - `viewer`: The viewer role has read-only access to all resources in Weaviate.
 - `operator_metadata_reader`: Added in `v1.39.10`. The metadata reader role can read cluster metadata but never objects or vectors. See [Metadata reader role](#metadata-reader-role).
 
-The `root` role can be assigned through the Weaviate configuration file. A predefined role cannot be modified. The user can, however, be assigned additional roles through the Weaviate API.
+The `root` role is assigned with the `AUTHORIZATION_RBAC_ROOT_USERS` environment variable. A predefined role cannot be modified. The user can, however, be assigned additional roles through the Weaviate API.
 
 :::tip Root user requirement in older versions
 In Weaviate versions `v1.30.6` and `v1.31.0` or below, if RBAC is enabled, you must configure at least one user with the built-in root role. Otherwise, Weaviate will not start. This requirement was removed in versions `v1.30.7` and `v1.31.1`.

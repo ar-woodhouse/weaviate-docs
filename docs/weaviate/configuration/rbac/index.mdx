@@ -97,7 +97,7 @@ Weaviate comes with a set of predefined roles. These roles are:
 - `root`: The root role has **full access** to all resources in Weaviate.
 - `viewer`: The viewer role has **read-only access** to all resources in Weaviate.
 
-The `root` role can be assigned to a user through the Weaviate configuration file using the [`AUTHORIZATION_RBAC_ROOT_USERS`](/deploy/configuration/env-vars/index.md#rbac-authorization) environment variable. A predefined role cannot be modified. The user can, however, be assigned additional roles through the Weaviate API.
+The `root` role can be assigned to a user with the [`AUTHORIZATION_RBAC_ROOT_USERS`](/deploy/configuration/env-vars/index.md#rbac-authorization) environment variable. A predefined role cannot be modified. The user can, however, be assigned additional roles through the Weaviate API.
 
 All roles can also be assigned through the Weaviate API, including the predefined role. The predefined roles cannot be modified, but they can be assigned to or revoked from users.
 

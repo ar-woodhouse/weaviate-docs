@@ -26,7 +26,7 @@ In a multi-tenant collection, each tenant consists of one shard. This means that
 
 Depending on the setup, each shard can have one or more "replicas", to be hosted on different nodes. This is referred to as a "high availability" setup, where the same data is available on multiple nodes. This allows for better read throughput and fault tolerance.
 
-You can set the desired number of replicas, also called a replication factor, in Weaviate. This can be set a global cluster-level default using the [`REPLICATION_MINIMUM_FACTOR` environment variable](/docs/deploy/configuration/env-vars/index.md). It can also be set [per collection](/docs/weaviate/manage-collections/multi-node-setup.mdx#replication-settings), which will override the global default.
+You can set the desired number of replicas, also called a replication factor, in Weaviate. This can be set a global cluster-level default using the [`REPLICATION_MINIMUM_FACTOR` environment variable](/docs/deploy/configuration/env-vars/index.md). It can also be set [per collection](/docs/weaviate/manage-collections/multi-node-setup.mdx#replication-settings), which must be at least the global minimum and is used instead of it.
 
 ## Motivation to scale Weaviate
 Generally there are (at least) three distinct motivations to scale out horizontally which all will lead to different setups.
