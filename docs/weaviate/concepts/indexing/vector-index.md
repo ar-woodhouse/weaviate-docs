@@ -296,7 +296,7 @@ Vectors that aren't currently in cache are added to the cache if there is still 
 
 ## Asynchronous indexing
 
-This feature relates to the vector index, specifically only to the HNSW and HFresh indexes.
+Asynchronous indexing applies to every vector index type (`hnsw`, `flat`, `hfresh` and `dynamic`). A `dynamic` index cannot be created without it.
 
 Asynchronous indexing can be enabled by opting in as follows:
 
