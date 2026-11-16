@@ -130,7 +130,7 @@ A lower value for a distance always means that two vectors are closer to one ano
 
 #### Certainty (only for cosine distance)
 
-`Certainty` is an opinionated measure that always returns a number between 0 and 1. It is therefore only usable with fixed-range distance metrics, such as `cosine`.
+`Certainty` is an opinionated measure that always returns a number between 0 and 1. It is therefore only usable with `cosine` distance, the only metric with a fixed range. `certainty` is not supported with more than one target vector.
 
 ### Keyword search metadata
 
