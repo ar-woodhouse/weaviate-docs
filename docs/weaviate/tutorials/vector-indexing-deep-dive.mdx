@@ -55,7 +55,7 @@ For a deeper dive into all available parameters, see the [HNSW configuration ref
 
 ## The Flat Index: For Accuracy and Small Datasets
 
-The `Flat` index performs a brute-force search by comparing a query vector to every single vector in the index. This guarantees perfect recall but does not scale well for large datasets.
+The `Flat` index performs a brute-force search by comparing a query vector to every single vector in the index. Without compression this is an exact search, so recall is 100%, but it does not scale well for large datasets. With [BQ or RQ compression](../configuration/compression/index.md), the compressed vectors rank the candidates and Weaviate rescores only the top candidates.
 
 It's an excellent choice for:
 - Small indexes (e.g., under 10,000-20,000 objects).

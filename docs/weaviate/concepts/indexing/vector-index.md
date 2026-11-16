@@ -125,7 +125,7 @@ The size of an HNSW index is dominated by the number of vectors; take a look at 
 
 As you can see, the memory requirements of an HNSW index can quickly become a bottleneck. This is where [quantization](../vector-quantization.md) can be used to reduce the size of the index in memory. Alternatively, the disk-based [HFresh index](#hfresh-index) keeps only a compressed centroid index in memory, which can dramatically reduce the memory footprint.
 
-HNSW is very fast, memory efficient, approach to similarity search. The memory cache only stores the highest layer instead of storing all of the data objects in the lowest layer. When the search moves from a higher layer to a lower one, HNSW only adds the data objects that are closest to the search query. This means HNSW uses a relatively small amount of memory compared to other search algorithms.
+HNSW is a fast and memory-efficient approach to similarity search. The upper layers hold far fewer objects than layer zero, so a search visits only a small number of candidates before it descends to the bottom layer. The vectors themselves are held in the [vector cache](#vector-cache-considerations), so the index still needs memory in proportion to the number of vectors.
 
 Have another look at the diagram; it demonstrates how the HNSW algorithm searches. The search vector in the top layer connects to a partial result in layer one. The objects in layer one lead HNSW to the result set in layer zero. This allows HNSW to skip objects that are unrelated to the search query.
 
@@ -165,13 +165,14 @@ In code, this can be expressed as:
 
 ```python
 ef = min(max(dynamicEfMin, queryLimit * dynamicEfFactor), dynamicEfMax)
+ef = max(ef, queryLimit)  # ef must never be smaller than the query limit
 ```
 
 To keep search recall high, the actual dynamic `ef` value stays above `dynamicEfMin` even if the query limit is small enough to suggest a lower value.
 
 To keep search speed reasonable even when retrieving large result sets, the dynamic `ef` value is limited to `dynamicEfMax`. Weaviate doesn't exceed `dynamicEfMax` even if the query limit is large enough to suggest a higher value. If the query limit is higher than `dynamicEfMax`, `dynamicEfMax` does not have any effect. In this case, dynamic `ef` value is equal to the query limit.
 
-To determine the length of the ANN list, Weaviate multiples the query limit by `dynamicEfFactor`. The list range is modified by `dynamicEfMin` and `dynamicEfMax`.
+To determine the length of the ANN list, Weaviate multiplies the query limit by `dynamicEfFactor`. The list range is modified by `dynamicEfMin` and `dynamicEfMax`.
 
 Consider this GraphQL query that sets a limit of 4.
 

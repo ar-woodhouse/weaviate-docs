@@ -468,6 +468,10 @@ More concretely: If you had to pick between a machine that has 16 GB of RAM and 
 
 </details>
 
+:::info The cut-off is now implemented
+Weaviate switches to a flat search when a filtered subset holds fewer objects than [`flatSearchCutoff`](../config-refs/indexing/vector-index.mdx#hnsw-index-parameters) (default `40000`). See [Flat-search cutoff](../concepts/filtering.md#flat-search-cutoff).
+:::
+
 #### Q: My Weaviate instance uses more memory than I think is reasonable. How can I debug this?
 
 <details>
