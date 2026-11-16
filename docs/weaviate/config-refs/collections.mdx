@@ -1152,6 +1152,8 @@ import CollectionMutableParameters from "/_includes/collection-mutable-parameter
 
 <CollectionMutableParameters />
 
+Enabling a quantizer (`pq`, `sq`, `bq` or `rq`) on an existing collection is supported. Disabling one is not: there is no decompression path, so a request that turns a quantizer off does not change the index.
+
 </details>
 
 After you create a collection, you can [add new properties](../manage-collections/collection-operations.mdx#add-a-property). You cannot modify existing properties after you create the collection. You can also [add new named vectors](../concepts/data.md#adding-a-named-vector-after-collection-creation).

@@ -122,7 +122,7 @@ When SQ is enabled, Weaviate boosts recall by over-fetching compressed results. 
 
 ## Rotational quantization
 
-**Rotational quantization (RQ)** provides significant compression while maintaining high recall. Unlike SQ, RQ requires no training phase and can be enabled immediately at index creation. RQ is available in: **8-bit**, **4-bit** and **1-bit** variants.
+**Rotational quantization (RQ)** provides significant compression while maintaining high recall. Unlike SQ, RQ requires no training phase, unless you enable `centering` on 4-bit RQ, and can be enabled immediately at index creation. RQ is available in: **8-bit**, **4-bit** and **1-bit** variants.
 
 ### 8-bit RQ
 
@@ -190,13 +190,18 @@ Learn more about how to [configure rotational quantization](../configuration/com
 
 ## Over-fetching / re-scoring
 
-Weaviate over-fetches results and then re-scores them when you use SQ, RQ, or BQ. This is because the distance calculation on the compressed vectors is not as accurate as the same calculation on the original vector embedding.
+Weaviate over-fetches results and then re-scores them when you use PQ, SQ, RQ, or BQ. This is because the distance calculation on the compressed vectors is not as accurate as the same calculation on the original vector embedding.
 
 When you run a query, Weaviate compares the query limit against a configurable `rescoreLimit` parameter.
 
-The query retrieves compressed objects until the object count reaches whichever limit is greater. Then, Weaviate fetches the original, uncompressed vector embeddings that correspond to the compressed vectors. The uncompressed vectors are used to recalculate the query distance scores.
+The query builds a candidate pool from the compressed index, then Weaviate fetches the original, uncompressed vector embeddings for the candidates it rescores. The uncompressed vectors are used to recalculate the query distance scores.
 
-For example, if a query is made with a limit of 10, and a rescore limit of 200, Weaviate fetches 200 objects. After rescoring, the query returns top 10 objects. This process offsets the loss in search quality (recall) that is caused by compression.
+How large that pool can get depends on the index type:
+
+- A `flat` index reads `max(limit, rescoreLimit)` candidates.
+- An `hnsw` index examines at most `ef` candidates. With the default dynamic `ef`, a limit of 10 gives `ef = 100`, so no more than 100 candidates can be rescored even if `rescoreLimit` is higher.
+
+For example, with a limit of 10 and `rescoreLimit` of 200, a `flat` index reads 200 objects. An `hnsw` index rescoring the same query examines about 100 candidates. After rescoring, the query returns the top 10 objects. This process offsets the loss in search quality (recall) that is caused by compression.
 
 :::note RQ optimization
 With 8-bit RQ's high native recall of 98-99%, you can often disable rescoring (set `rescoreLimit` to `0`) for maximum query performance with minimal impact on search quality.

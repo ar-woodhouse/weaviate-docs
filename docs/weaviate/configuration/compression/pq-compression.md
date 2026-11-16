@@ -173,7 +173,7 @@ Follow these steps to manually enable PQ.
 
 ### 2. Load training data
 
-[Add objects](/weaviate/manage-objects/import.mdx) that will be used to train PQ. Weaviate will use the greater of the training limit, or the collection size, to train PQ.
+[Add objects](/weaviate/manage-objects/import.mdx) that will be used to train PQ. Weaviate uses at most `trainingLimit` objects, even if the collection holds more.
 
 We recommend loading a representative sample such that the trained centroids are representative of the entire dataset.
 

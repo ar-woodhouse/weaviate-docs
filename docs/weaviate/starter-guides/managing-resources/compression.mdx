@@ -102,7 +102,7 @@ Each compression algorithm has its own characteristics with regard to speed.
 
 - RQ provides the fastest query performance among 8-bit quantization methods. RQ uses SIMD-optimized distance computations that are typically 2-3x faster than uncompressed vectors. RQ can be faster than SQ while providing better recall. For maximum performance, 8-bit RQ can run without rescoring with minimal impact on recall.
 
-SQ and BQ both have optional vector caches. Use these configurable caches to load frequently used, uncompressed vectors into memory to improve overall search times.
+On a `flat` index, BQ and RQ have an optional vector cache. Use it to keep frequently used vectors in memory to improve overall search times.
 
 #### Import speed
 
@@ -112,14 +112,14 @@ Starting in v1.22, Weaviate has an optional, [asynchronous indexing](/weaviate/c
 
 ### Activate compression
 
-- BQ, SQ, and RQ have to be enabled when you create the collection.
+- BQ, SQ, and RQ can be enabled when you create the collection, or later on an existing collection (`v1.31` and later).
 
 - PQ and SQ both require training data before they begin to compress data.
   - PQ's training step defines centroids for each segment.
   - SQ's training step determines the minimum and maximum values for bucket boundaries.
   - PQ and SQ both begin to compress data after you have imported a large enough training set and the training step is complete.
 
-- RQ requires no training and begins compressing data immediately upon vector insertion. This makes RQ ideal for applications that need immediate compression without waiting for a training phase.
+- RQ requires no training unless you enable `centering` on 4-bit RQ, which trains on a sample of up to `trainingLimit` vectors. Without centering, RQ begins compressing data immediately upon vector insertion. This makes RQ ideal for applications that need immediate compression without waiting for a training phase.
 
 - If you have async indexing and [AutoPQ enabled](/weaviate/configuration/compression/pq-compression#configure-autopq), PQ compression can be enabled anytime. If AutoPQ is not enabled, you should only enable PQ after you have imported enough objects to [train the algorithm](/weaviate/configuration/compression/pq-compression#manually-configure-pq).
 
