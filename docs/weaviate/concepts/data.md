@@ -402,7 +402,7 @@ Sharding has several benefits:
 - Fast, efficient querying
 - Easy and robust setup and clean up
 
-Tenant shards are more lightweight. You can easily have 50,000, or more, active shards per node. This means that you can support 1M concurrently active tenants with just 20 or so nodes.
+Tenant shards are more lightweight. As a planning figure, you can expect 50,000 or more active shards per node, so 1M concurrently active tenants fit in roughly 20 nodes. The practical ceiling is the Linux open file limit, and the [measured numbers](#number-of-tenants-per-node) are lower, so size against the measured figure.
 
 Multi-tenancy is especially useful when you want to store data for multiple customers, or when you want to store data for multiple projects.
 
@@ -415,7 +415,7 @@ Deleting a tenant deletes the associated shard. As a result, deleting a tenant a
 Tenants have an activity status (also called a tenant state) that reflects their availability and storage location. A tenant can be `ACTIVE`, `INACTIVE`, `OFFLOADED`, `OFFLOADING`, or `ONLOADING`.
 
 - `ACTIVE` tenants are loaded and available for read and write operations.
-- In all other states, the tenant is not available for read or write access. Access attempts return an error message.
+- In all other states, the tenant is not available for read or write access unless [`autoTenantActivation`](../config-refs/collections.mdx#multi-tenancy) is enabled, which activates the tenant on the next operation. Otherwise, access attempts return an error message.
     - `INACTIVE` tenants are stored on local disk storage for quick activation.
     - `OFFLOADED` tenants are stored on cloud storage. This status is useful for long-term storage for tenants that are not frequently accessed.
     - `OFFLOADING` tenants are being moved to cloud storage. This is a transient status, and therefore not user-specifiable.
@@ -432,7 +432,7 @@ For more details on managing tenants, see [Multi-tenancy operations](../manage-c
 | `ONLOADING` | No | Being loaded from cloud storage, no read / write access. Access attempts return an error message. | No |
 
 :::info Tenant status renamed in `v1.26`
-In `v1.26`, the `HOT` status was renamed to `ACTIVE` and the `COLD` status was renamed to `INACTIVE`.
+In `v1.26`, `ACTIVE`, `INACTIVE` and `OFFLOADED` replaced `HOT`, `COLD` and `FROZEN`. The new names are accepted as input. The tenant list still reports the stored legacy names (`HOT`, `COLD`, `FROZEN`).
 :::
 
 :::info Tenant state propagation
@@ -465,7 +465,7 @@ Support for backing up `inactive` tenants was added in `v1.37.0`, and backported
 
 ### Tenancy and IDs
 
-Each tenancy is like a namespace, so different tenants could, in theory, have objects with the same IDs. To avoid naming problems, object IDs in multi-tenant clusters combine the tenant ID and the object ID to create an ID that is unique across tenants.
+Each tenancy is like a namespace, so different tenants could, in theory, have objects with the same IDs. Each tenant has its own shard store, so the same object ID can exist in two tenants without a conflict; the tenant name in the request selects which shard is used.
 
 ### Tenancy and cross-references
 
@@ -485,7 +485,7 @@ Cross-references like these are not supported:
 
 - Each tenant has a dedicated, high-performance vector index. Dedicated indexes mean faster query speeds. Instead of searching a shared index space, each tenant responds as if it was the only user on the cluster.
 - Each tenant's data is isolated on a dedicated shard. This means that deletes are fast and do not affect other tenants.
-- To scale out, add a new node to your cluster. Weaviate does not redistribute existing tenants, however Weaviate adds new tenants to the node with the least resource usage.
+- To scale out, add a new node to your cluster. Weaviate does not redistribute existing tenants, however Weaviate places new tenants on the candidate node with the most free disk space.
 
 :::info Related pages
 - [How-to: Manage Data | Multi-tenancy operations](../manage-collections/multi-tenancy.mdx)

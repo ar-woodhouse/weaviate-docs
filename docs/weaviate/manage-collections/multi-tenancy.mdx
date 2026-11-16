@@ -20,7 +20,7 @@ import SkipLink from "/src/components/SkipValidationLink";
 Multi-tenancy provides data isolation. Each tenant is stored on a separate shard. Data stored in one tenant is not visible to another tenant. If your application serves many different users, multi-tenancy keeps their data private and makes database operations more efficient.
 
 :::info Tenant status renamed in `v1.26`
-In `v1.26`, the `HOT` status was renamed to `ACTIVE` and the `COLD` status was renamed to `INACTIVE`.
+In `v1.26`, `ACTIVE`, `INACTIVE` and `OFFLOADED` replaced `HOT`, `COLD` and `FROZEN`. The new names are accepted as input. The tenant list still reports the stored legacy names (`HOT`, `COLD`, `FROZEN`).
 :::
 
 ## Enable multi-tenancy
@@ -202,7 +202,7 @@ Use the client to update the auto-tenant creation setting. Auto-tenant is only a
 
 ## Add new tenants manually
 
-To add tenants to a collection, specify the collection and the new tenants. Optionally, specify the tenant activity status as `ACTIVE`(available, default), `INACTIVE` (not available, on disk), or `OFFLOADED` (not available, [offloaded to cloud](../concepts/data.md#tenant-states)).
+To add tenants to a collection, specify the collection and the new tenants. Optionally, specify the tenant activity status as `ACTIVE` (available, default) or `INACTIVE` (not available, on disk). A tenant cannot be created as `OFFLOADED`: create it as `ACTIVE` or `INACTIVE`, then [offload it](tenant-states.mdx#offload-tenant).
 
 This example adds `tenantA` to the `MultiTenancyCollection` collection:
 
