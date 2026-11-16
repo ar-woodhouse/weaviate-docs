@@ -285,7 +285,7 @@ For example, searching for `"lois clark"` with `word` tokenization will rank obj
 
 Stop words are common words (like "a", "the", "is") that are typically ignored during search. By default, Weaviate uses a standard English stop words list.
 
-After tokenization, stop words in queries behave as if they're not present for matching purposes:
+After tokenization, stop words in queries on properties with `word` tokenization behave as if they're not present for matching purposes. Other tokenizers keep every token, so a stop word in a `whitespace` or `field` property still matches:
 - Filter for `"a computer mouse"` behaves like `"computer mouse"`
 - Stop words still affect BM25f ranking scores
 

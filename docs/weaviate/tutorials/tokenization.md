@@ -165,7 +165,7 @@ Here, we filter for variants of the phrase "computer mouse", where some queries 
 </details>
 
 **Key observations:**
-- Stop words like "a" and "the" are ignored in `word`, `lowercase`, and `whitespace` tokenization
+- Stop words like "a" and "the" are ignored in `word` tokenization only. `lowercase` and `whitespace` keep every token, so "a" still matches
 - `field` tokenization treats the entire string as one token, so stop words matter
 - Adding non-stop words like "blue" prevents matches
 

@@ -63,7 +63,7 @@ Text properties can also enable **accent folding** via `textAnalyzer.asciiFold`,
 
 Stopwords are words that are filtered out before processing text.
 
-Weaviate uses configurable stopwords in calculating the BM25 score. Any tokens that are contained in the stopword list will be ignored from the BM25 score calculation.
+Weaviate uses configurable stopwords in calculating the BM25 score on properties with `word` tokenization. Any tokens that are contained in the stopword list will be ignored from the BM25 score calculation. Other tokenizers keep every token, so a stopword in a `whitespace` or `field` property still matches.
 
 See the [reference page](../../config-refs/indexing/inverted-index.mdx#stopwords) for more details.
 

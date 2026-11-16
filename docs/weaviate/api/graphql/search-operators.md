@@ -446,7 +446,7 @@ The available options are `And`, `Or`, and `AndCross`:
 | Option | Description |
 | ------ | ----------- |
 | `And` | All of the query tokens must appear together within a single searched property. Tokens spread across different properties do not match. |
-| `Or` | An additional parameter `minimumOrTokensMatch` must be specified, which defines how many of the query tokens must be present within a single searched property for the object to be considered a match. |
+| `Or` | An optional parameter `minimumOrTokensMatch` defines how many of the query tokens must be present within a single searched property for the object to be considered a match. Default `1`. |
 | `AndCross` | Every query token must be matched by at least one of the searched properties, so the tokens can be spread across different properties. All searched properties must share the same tokenization and analyzer settings, otherwise the query fails with an error. (available from `v1.38.8`) |
 
 If not set, the keyword search behaves as if `Or` was set with a `minimumOrTokensMatch` of `1`.
@@ -455,7 +455,7 @@ If not set, the keyword search behaves as if `Or` was set with a `minimumOrToken
 
 The `bm25` operator performs a keyword (sparse vector) search, and uses the BM25F ranking function to score the results. BM25F (**B**est **M**atch **25** with Extension to Multiple Weighted **F**ields) is an extended version of BM25 that applies the scoring algorithm to multiple fields (`properties`), producing better results.
 
-The search is case-insensitive, and case matching does not confer a score advantage. Stop words are removed. [Stemming is not supported yet](https://github.com/weaviate/weaviate/issues/2439).
+With `word` tokenization the search is case-insensitive, and case matching does not confer a score advantage. Stop words are removed from the query. With `whitespace` or `field` tokenization the search is case-sensitive and stop words are not removed. [Stemming is not supported yet](https://github.com/weaviate/weaviate/issues/2439).
 
 ### Schema configuration
 
@@ -554,7 +554,7 @@ The available options are `And`, `Or`, and `AndCross`:
 | Option | Description |
 | ------ | ----------- |
 | `And` | All of the query tokens must appear together within a single searched property. Tokens spread across different properties do not match. |
-| `Or` | An additional parameter `minimumOrTokensMatch` must be specified, which defines how many of the query tokens must be present within a single searched property for the object to be considered a match. |
+| `Or` | An optional parameter `minimumOrTokensMatch` defines how many of the query tokens must be present within a single searched property for the object to be considered a match. Default `1`. |
 | `AndCross` | Every query token must be matched by at least one of the searched properties, so the tokens can be spread across different properties. All searched properties must share the same tokenization and analyzer settings, otherwise the query fails with an error. (available from `v1.38.8`) |
 
 If not set, the keyword search behaves as if `Or` was set with a `minimumOrTokensMatch` of `1`.

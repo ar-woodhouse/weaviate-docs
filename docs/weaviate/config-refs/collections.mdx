@@ -90,10 +90,10 @@ An example of a complete collection object including properties:
       "indexFilterable": true,              // Optional, default is true. By default each property
                                             //    is indexed with a roaring bitmap index where
                                             //     available for efficient filtering.
-      "indexSearchable": true               // Optional, default is true. By default each property
-                                            //    is indexed with a searchable index for
-                                            //    BM25-suitable Map index for BM25 or hybrid
-                                            //    searching.
+      "indexSearchable": true               // Optional, default is true for text and text[]
+                                            //    properties, false for other types. By default
+                                            //    each text property is indexed with a searchable
+                                            //    index for BM25 or hybrid searching.
     }
   ],
   "invertedIndexConfig": {                  // Optional, index configuration
@@ -203,7 +203,7 @@ A description of the collection. This is for your reference and can also provide
 | [`tokenization`](#tokenization)          | String  | For `text` properties, specifies how the text is split into tokens for inverted indexing.                                    | `word`     | No      |
 | [`indexInverted`](#inverted-index)       | Boolean | If `true`, inverted index is enabled for this property.                                                                      | `true`     | No      |
 | [`indexFilterable`](#inverted-index)     | Boolean | If `true`, builds a roaring bitmap index for this property to allow for efficient filtering.                                 | `true`     | No      |
-| [`indexSearchable`](#inverted-index)     | Boolean | If `true`, builds a searchable map index for this property, suitable for BM25 or hybrid search.                              | `true`     | No      |
+| [`indexSearchable`](#inverted-index)     | Boolean | If `true`, builds a searchable map index for this property, suitable for BM25 or hybrid search. Only `text` and `text[]` properties default to `true`; other data types default to `false`. | `true` for `text` and `text[]` | No      |
 | [`indexRangeFilters`](#inverted-index)   | Boolean | If `true`, builds a roaring bitmap index for numerical range-based filtering.                                                | `false`    | No      |
 | `moduleConfig`                           | Object  | Module-specific settings, such as skipping vectorization for this property.                                                  | `{}`       | No      |
 
@@ -229,7 +229,7 @@ An example of a complete property object:
     }
   },
   "indexFilterable": true, // Optional, default is true. By default each property is indexed with a roaring bitmap index where available for efficient filtering.
-  "indexSearchable": true // Optional, default is true. By default each property is indexed with a searchable index for BM25-suitable Map index for BM25 or hybrid searching.
+  "indexSearchable": true // Optional, default is true for text and text[] properties, false for other types. By default each text property is indexed with a searchable index for BM25 or hybrid searching.
 }
 ```
 
@@ -1126,7 +1126,7 @@ Some, but not all, parameters are mutable after you create your collection. To m
 | `class` (the collection name)        | No                                                                 | -                                                                                                                       | Create a new collection and [migrate the data](../manage-collections/migrate.mdx). To serve an existing collection under another name, use a [collection alias](#collection-aliases). |
 | `description`                        | Yes                                                                | [Update the collection definition](../manage-collections/collection-operations.mdx#update-a-collection-definition)       | -                                                                                                           |
 | `properties`                         | New properties only                                                | [Add a property](../manage-collections/collection-operations.mdx#add-a-property)                                        | To change an existing property, create a new collection and [migrate the data](../manage-collections/migrate.mdx). |
-| `invertedIndexConfig`                | Yes                                                                | [Update the collection definition](../manage-collections/collection-operations.mdx#update-a-collection-definition)       | Changing [`tokenizerUserDict`](./indexing/inverted-index.mdx#tokenizeruserdict) is allowed, but existing objects keep the old tokenization until they are re-imported. |
+| `invertedIndexConfig`                | Partly                                                             | [Update the collection definition](../manage-collections/collection-operations.mdx#update-a-collection-definition)       | Changing [`tokenizerUserDict`](./indexing/inverted-index.mdx#tokenizeruserdict) is allowed, but existing objects keep the old tokenization until they are re-imported. `bm25`, `stopwords` and `cleanupIntervalSeconds` are mutable. `indexTimestamps`, `indexNullState` and `indexPropertyLength` cannot be changed after creation. |
 | `objectTtlConfig`                    | Yes                                                                | [Update the collection definition](../manage-collections/collection-operations.mdx#update-a-collection-definition)       | -                                                                                                           |
 | `vectorConfig` (named vectors)       | New named vectors, and dropping a named vector from `v1.40`        | [Add new named vectors](../manage-collections/vector-config.mdx#add-new-named-vectors), [Drop a named vector](../manage-collections/vector-config.mdx#drop-a-named-vector) | To change an existing named vector, create a new collection and [migrate the data](../manage-collections/migrate.mdx). |
 | `vectorizer`                         | No                                                                 | -                                                                                                                       | Create a new collection and [migrate the data](../manage-collections/migrate.mdx).                          |
