@@ -128,7 +128,7 @@ import MutableGenerativeConfig from '/_includes/mutable-generative-config.md';
 
 Note that the required parameters differ between Vertex AI and Gemini API.
 
-You can [specify](#generative-parameters) one of the [available models](#available-models) for Weaviate to use. The [default model](#available-models) is used if no model is specified.
+You can [specify](#generative-parameters) one of the [available models](#available-models) for Weaviate to use. The [default model](#available-models) is used if no model is specified. The module's built-in default is `chat-bison`, which Google has retired, so set `model` explicitly.
 
 ### Vertex AI
 

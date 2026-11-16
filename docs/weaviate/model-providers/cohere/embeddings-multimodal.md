@@ -296,7 +296,7 @@ The query below returns the `n` most similar objects to the input image from the
 
 Weaviate does not validate the model name, so you can set any model that your Cohere account can reach. Name validation was removed in `v1.33.0`, and backported to `v1.31.17` and `v1.32.10`.
 
-The server default is `embed-multilingual-v3.0`.
+The server default is `embed-multilingual-v3.0`. That default is a text-only model, so set `model` explicitly on every multimodal collection, for example `embed-v4.0`. A collection left on the default vectorizes text but cannot embed images.
 
 A multimodal collection requires a model that can embed images as well as text. See the [Cohere model documentation](https://docs.cohere.com/docs/models) for the list of available models.
 

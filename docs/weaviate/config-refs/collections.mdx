@@ -65,7 +65,7 @@ An example of a complete collection object including properties:
   "vectorizer": "text2vec-contextionary",   // Vectorizer to use for data objects added to this collection
   "moduleConfig": {
     "text2vec-contextionary": {
-      "vectorizeClassName": true            // Include the collection name in vector calculation (default true)
+      "vectorizeClassName": true            // Include the collection name in vector calculation (default depends on the vectorizer module)
     }
   },
   "properties": [                           // An array of the properties you are adding, same as a Property Object
@@ -787,7 +787,7 @@ a class-level vectorizer or vector index cannot be added through an update, add 
 
 ### Module configuration
 
-The `moduleConfig` parameter allows you to specify if the vectorizers will include or exclude the collection name in vector calculations (default `true`).
+The `moduleConfig` parameter allows you to specify if the vectorizers will include or exclude the collection name in vector calculations. The default depends on the integration: `text2vec-openai` and `text2vec-cohere` default to `true`, while `text2vec-google`, `text2vec-jinaai`, `text2vec-ollama`, `text2vec-morph`, `text2vec-nvidia` and the multimodal integrations default to `false`. The value is written into the collection when it is created.
 It is also used to specify reranker and generative [model providers](../model-providers/index.md) at a collection level.
 
 <details>
@@ -798,7 +798,7 @@ An example of a complete `moduleConfig` object:
 ```json
   "moduleConfig": {
     "text2vec-contextionary": {
-      "vectorizeClassName": true  // Include the collection name in vector calculation (default true)
+      "vectorizeClassName": true  // Include the collection name in vector calculation (default depends on the vectorizer module)
     }
   },
 ```

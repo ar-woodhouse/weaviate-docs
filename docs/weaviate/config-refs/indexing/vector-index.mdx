@@ -273,8 +273,8 @@ Unless specified otherwise in the collection definition, the default behavior is
 - Sort properties in alphabetical (a-z) order before concatenating values
 - If `vectorizePropertyName` is `true` (`false` by default) prepend the property name to each property value
 - Join the (prepended) property values with spaces
-- Prepend the class name (unless `vectorizeClassName` is `false`)
-- Convert the produced string to lowercase
+- Prepend the class name if `vectorizeClassName` is `true`. The default depends on the integration.
+- Send the string as stored. Weaviate stopped lowercasing it in `v1.27`; set `LOWERCASE_VECTORIZATION_INPUT=true` to lowercase it for every vectorizer.
 
 For example, this data object,
 
@@ -288,10 +288,10 @@ Article = {
 will be vectorized as:
 
 ```md
-article cows lose their jobs as milk prices drop as his 100 diary cows lumbered over for their monday...
+Article Cows lose their jobs as milk prices drop As his 100 diary cows lumbered over for their Monday...
 ```
 
-By default, the calculation includes the collection name and all property values, but the property names are not indexed.
+By default, the calculation includes all property values. The collection name is included when the vectorizer module defaults `vectorizeClassName` to `true`, and property names are included only when `vectorizePropertyName` is `true`.
 
 To configure vectorization behavior on a per-collection basis, use `vectorizeClassName`.
 

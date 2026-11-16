@@ -29,7 +29,7 @@ At [import time](#data-import), Weaviate generates text object embeddings and sa
 
 ### Weaviate configuration
 
-Your Weaviate instance must be configured with the Jina AI ColBERT vectorizer integration (`text2colbert-jinaai`) module.
+Your Weaviate instance must be configured with the Jina AI multi-vector vectorizer integration (`text2multivec-jinaai`, formerly `text2colbert-jinaai`) module.
 
 <details>
   <summary>For Weaviate Cloud (WCD) users</summary>

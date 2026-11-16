@@ -29,7 +29,7 @@ This enables an enhanced developed experience, such as the ability to:
 | [FriendliAI](./friendliai/index.md) | - | [Text](./friendliai/generative.md) | - |
 | [Google](./google/index.md) | [Text](./google/embeddings.md), [Multimodal](./google/embeddings-multimodal.md) | [Text](./google/generative.md) | - |
 | [Hugging Face](./huggingface/index.md) | [Text](./huggingface/embeddings.md) | - | - |
-| [Jina AI](./jinaai/index.md) | [Text](./jinaai/embeddings.md), [Multimodal](./jinaai/embeddings-multimodal.md) | - | [Reranker](./jinaai/reranker.md) |
+| [Jina AI](./jinaai/index.md) | [Text](./jinaai/embeddings.md), [Multimodal](./jinaai/embeddings-multimodal.md), [ColBERT](./jinaai/embeddings-colbert.md) | - | [Reranker](./jinaai/reranker.md) |
 | [Meta](./meta/index.md) | - | [Text](./meta/generative.md) | - |
 | [Mistral](./mistral/index.md) | [Text](./mistral/embeddings.md) | [Text](./mistral/generative.md) | - |
 | [Morph](./morph/index.md) | [Text](./morph/embeddings.md) | - | - |
@@ -55,7 +55,7 @@ For releases before `v1.33`, enable all API-based modules by setting the [`ENABL
 | ------------------------------------------ | -------------------------------------------------------------------------------------------------- | ------------------------------ | -------------------------------------- |
 | [GPT4All (Deprecated)](./gpt4all/index.md) | [Text (Deprecated)](./gpt4all/embeddings.md)                                                       | -                              | -                                      |
 | [Hugging Face](./transformers/index.md)    | [Text](./transformers/embeddings.md), [Multimodal (CLIP)](./transformers/embeddings-multimodal.md) | -                              | [Reranker](./transformers/reranker.md) |
-| [KubeAI](./kubeai/index.md)                | [Text](./kubeai/embeddings.md)                                                                     | -                              | -                                      |
+| [KubeAI](./kubeai/index.md)                | [Text](./kubeai/embeddings.md)                                                                     | [Text](./kubeai/generative.md) | -                                      |
 | [Model2vec](./model2vec/index.md)          | [Text](./model2vec/embeddings.md)                                                                  | -                              | -                                      |
 | [Meta ImageBind](./imagebind/index.md)     | [Multimodal](./imagebind/embeddings-multimodal.md)                                                 | -                              | -                                      |
 | [Ollama](./ollama/index.md)                | [Text](./ollama/embeddings.md)                                                                     | [Text](./ollama/generative.md) | -                                      |
