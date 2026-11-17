@@ -254,7 +254,7 @@ If you want most accents folded but need to preserve specific characters (for ex
 }
 ```
 
-Because `asciiFoldIgnore` changes which tokens are written to disk, it is **immutable** after the property is created. Schema updates that change the ignore list are rejected. To change it, create a new property and reindex.
+Because `asciiFoldIgnore` changes which tokens are written to disk, it is **immutable** after the property is created. Schema updates that change the ignore list are rejected. To change it, create a differently named property with the new settings and write its values, or migrate the data to a new collection, then point queries at the new property. Rebuilding an index applies the current analyzer but cannot change it.
 
 See the [accent folding tutorial](../../tutorials/tokenization.md#example-4-accent-folding) for a worked example and the [textAnalyzer configuration reference](../../config-refs/indexing/inverted-index.mdx#textanalyzer) for all options.
 

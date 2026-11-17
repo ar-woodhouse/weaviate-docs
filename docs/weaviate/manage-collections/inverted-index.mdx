@@ -218,7 +218,7 @@ The following index types can be dropped: `searchable`, `filterable`, `rangeFilt
 
 ## Set tokenization type for property
 
-Configure a [tokenization method](../config-refs/collections.mdx#tokenization) for each property individually.
+Configure a [tokenization method](../config-refs/collections.mdx#tokenization) for each property individually. You can change the tokenization of an existing text property with the [index API](#migrate-or-rebuild-an-inverted-index).
 
 <details>
 <summary>Tokenization methods</summary>
@@ -293,6 +293,46 @@ For the full list of supported tokenizers (including `kagome_ja`, `kagome_kr`, a
     />
   </TabItem>
 </Tabs>
+
+## Migrate or rebuild an inverted index
+
+:::caution Preview
+The property index API is a Preview feature. Its behavior and API may change.
+:::
+
+Use the REST index endpoints to enable an index that was created disabled, change a text property's tokenization, migrate a `searchable` index to BlockMax WAND, or rebuild an index from the values already stored. A migration reads the stored objects, so objects imported before the change are included.
+
+This API cannot add values to a property that was added after import, change `textAnalyzer` settings, rebuild the null-state and property-length metadata indexes, or change a vector index.
+
+Submitting a migration or rebuild requires [`RUNTIME_REINDEX_ENABLED=true`](/deploy/configuration/env-vars/index.md#general) on a self-hosted instance. It is off by default, and these requests return `400` while it is off. Index status and cancellation remain available.
+
+Set `WEAVIATE_URL` to the server URL without `/v1`, and `WEAVIATE_API_KEY` to the API key. In this example, `Article` is a single-tenant collection with a text property `body`, and the request changes the property's tokenization from `word` to `field`:
+
+```bash
+curl -X PUT "$WEAVIATE_URL/v1/schema/Article/properties/body/index/searchable" \
+  -H "Authorization: Bearer $WEAVIATE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tokenization": "field"}'
+```
+
+The `indexName` path value is `searchable`, `filterable` or `rangeFilters`. The server compares the request with the current configuration. It returns `202` with `status: STARTED` when the request starts a task or joins one that is already running for the same change, and `200` with `status: NO_OP` when the request would change nothing.
+
+A `202` response with `status: STARTED` means the request was accepted, not that the indexes are ready. A tokenization change applies to the property's existing text indexes, `searchable` and `filterable`, because they are queried with the same tokenization. Poll the collection's index status:
+
+```bash
+curl "$WEAVIATE_URL/v1/schema/Article/indexes" \
+  -H "Authorization: Bearer $WEAVIATE_API_KEY"
+```
+
+For a `searchable` or `filterable` index, the entry reports `status` (`ready`, `pending`, `indexing`, `failed` or `cancelled`), the current `tokenization`, and `targetTokenization` while a change is running. A tokenization change affects the property's enabled text indexes. Where both exist, poll both entries until each is `ready` with the intended tokenization; a property with only one has one entry to poll. Handle `failed` and `cancelled` as terminal outcomes. The response describes the node that answered, so it can lag a task that is in flight, and it is not cluster-wide completion.
+
+To rebuild an index without changing its configuration, use `POST` on the same path with `/rebuild`. A `searchable` index must already use BlockMax WAND; migrate a WAND index with `{"algorithm": "blockmax"}` first. To stop a task, use `POST` on its `/cancel` path. Cancellation is refused with `409` once the task passes the point where cancelling is safe, so handle that response and read the status again.
+
+On a multi-tenant collection, omit the `tenants` parameter for a tokenization change or an enable operation: the task covers the whole collection, and a request that names tenants is rejected even when it names all of them. Keep every affected tenant `ACTIVE` with local data. In `v1.40.5`, a request that starts migration or rebuild work fails with `400` when an affected tenant is `INACTIVE`, `OFFLOADED` or changing state; a request that starts no new work, because it changes nothing or joins a running task, is answered before that check. In `v1.40.2`, the task can skip tenants without local data, so those tenants are not migrated. A `/rebuild` can name tenants; the same condition applies to the tenants it names.
+
+Before you migrate, check that the target configuration is valid for the property. The analyzer settings stay as they are, and some combinations of tokenization and analyzer settings are rejected when you create a collection. If the target combination is not valid, add a differently named property and write its values, or migrate to a new collection.
+
+A migration reads every stored object, so plan for the extra I/O and for the disk the new index uses while both exist. A tokenization change also changes matching: with `field`, the property is indexed as one token with surrounding whitespace removed and case preserved, so in this example `New York Times` matches and `new york times` does not. Analyzer settings can transform the token further. Compare results for sample queries before you rely on the new index.
 
 ## Further resources
 

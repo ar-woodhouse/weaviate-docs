@@ -269,11 +269,19 @@ import AddNamedVectors from '/_includes/feature-notes/add-named-vectors.mdx';
 
 A named vector can be added to an existing collection definition after collection creation. This allows you to add new vector representations for objects without having to delete and recreate the collection.
 
-When you add a new named vector to an existing collection definition, it's important to understand that **existing objects' new named vector will remain unpopulated**. Only objects created after the named vector addition will receive these new vector embeddings.
+When you add a new named vector to an existing collection definition, it's important to understand that **existing objects' new named vector will remain unpopulated**. Objects created after the addition receive it when the target has a generating vectorizer.
 
 This prevents any unintended side effects, such as incurring large vectorization time or costs for all existing objects in a collection.
 
-If you want to populate the new named vector for existing objects, delete and reinsert the objects manually. This will trigger the vectorization process for the new named vector.
+If you want to populate the new named vector for existing objects, you can supply the vector or have the server generate it:
+
+- **Write the vector yourself** in a partial object update. This stores the vector for that object and keeps its other named vectors. A full replace replaces the vectors you send and can clear properties, so use a partial update. A vector whose length differs from the length already established in the index is rejected.
+- **Insert the object again**, for example after a delete. The insert generates a vector for each target that has a generating vectorizer and that the insert does not supply. A target whose vectorizer is `none` gets nothing.
+- **Change a property that feeds the target**, in a collection with a generating vectorizer. The server re-vectorizes that target when its input changed and the update does not supply its vector. It reuses the stored vector otherwise.
+
+An update that neither supplies the vector nor changes the target's input does not fill a missing one. Setting [`REVECTORIZE_CHECK_DISABLED`](/deploy/configuration/env-vars/index.md#general) to `true` disables the reuse check, so every update re-vectorizes each target that has a generating vectorizer and no supplied vector. That adds embedding work and cost for those targets.
+
+Check retrieval for representative queries after you fill vectors. A length that differs from the length already established in the index is rejected, but the first vector in an empty index sets that length, so a length that does not match the configured model goes unnoticed. Neither a count nor a read-back shows an encoder mismatch. Record which model and inputs produced each target's vectors.
 
 <!-- TODO: I wonder we should show an example - maybe once the vectorizer syntax is updated with 1.32 -->
 

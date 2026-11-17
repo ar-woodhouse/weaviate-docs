@@ -231,7 +231,7 @@ Part of a **property definition** (not `invertedIndexConfig`). Configures text a
 
 :::note
 
-`asciiFoldIgnore` changes which tokens are written to disk. It cannot be modified after the property is created. Schema updates that change the ignore list are rejected. To change it, create a new property and reindex.
+`asciiFoldIgnore` changes which tokens are written to disk. It cannot be modified after the property is created. Schema updates that change the ignore list are rejected. To change it, create a differently named property with the new settings and write its values, or migrate the data to a new collection, then point queries at the new property. A [rebuild](../../manage-collections/inverted-index.mdx#migrate-or-rebuild-an-inverted-index) applies the current analyzer but cannot change it.
 
 :::
 
@@ -303,14 +303,14 @@ Find out more in [Concepts: Inverted index](../../concepts/indexing/inverted-ind
 
 Adding a property after importing objects can lead to limitations in inverted-index related behavior, such as filtering by the new property's length or null status.
 
-This is caused by the inverted index being built at import time. If you add a property after importing objects, the inverted index for metadata such as the length or the null status will not be updated to include the new properties. This means that the new property will not be indexed for existing objects. This can lead to unexpected behavior when querying.
+This is caused by the inverted index for metadata such as length or null status being written when an object is written. Objects that existed before the property was added have neither a value nor a metadata entry for it. A write that changes the property writes its entries for that object, and a new insert writes them. An object that keeps the property absent, including a repeated null, keeps no entry, so a null-state or length filter can miss it.
 
 To avoid this, you can either:
 
 - Add the property before importing objects.
 - Delete the collection, re-create it with the new property and then re-import the data.
 
-We are working on a re-indexing API to allow you to re-index the data after adding a property. This will be available in a future release.
+The [index API](../../manage-collections/inverted-index.mdx#migrate-or-rebuild-an-inverted-index) can rebuild a property's index from stored values, but it cannot add values or the missing metadata entries, so it does not remove the limitation described here.
 
 ## How tokenization affects inverted indexing
 

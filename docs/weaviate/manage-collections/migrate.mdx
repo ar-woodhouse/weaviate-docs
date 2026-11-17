@@ -18,26 +18,39 @@ Follow these examples to migrate data manually when using a backup is not possib
 - a single-tenancy collection (Collection), and
 - a tenant in a multi-tenancy collection (Tenant).
 
+Each example reads objects from the source, writes them to the target, and includes a verification step. Read the [vectors](#copy-the-vectors-or-recompute-them) section and the cross-references note below before you run one against a collection in production.
+
 <details>
   <summary>Additional information</summary>
 
 The examples use two different Weaviate instances, exposed through different ports. The same process can be used for two different instances as well.
-
-Cross-references in Weaviate are properties. As such, you can [retrieve cross-reference](./cross-references.mdx#read-cross-references) as a part of the object.
 
 </details>
 
 <details>
   <summary>What about cross-references?</summary>
 
-These scripts should migrate cross-references as well.
+Cross-references are properties, but these examples do not copy them. Their reads do not ask for references, and their writes send primitive properties, and in some cases UUIDs and vectors. None of them writes a reference.
 
-<br />
-
-Cross-references are properties. As such, these cursor-based exports will include them.
-During restoration, restore the cross-referenced (i.e. "to") object first, then the object that contains the cross-reference (i.e. "from" object).
+To migrate cross-references, [read each object with its references](./cross-references.mdx#read-cross-references), restore the referenced ("to") objects first, then write the referencing ("from") object with its references ([create an object with a cross-reference](./cross-references.mdx#create-an-object-with-a-cross-reference)). A reference stores a beacon with the target collection name and object UUID. When the target collection, instance or tenant changes, reconcile the references after the copy.
 
 </details>
+
+## Copy the vectors or recompute them?
+
+Decide this before you start, because it changes the cost and the correctness of the result. A stored vector is only valid in the vector space that produced it.
+
+Copy stored vectors when the target keeps the same encoding and the same input: the same model, the same properties with the same values, and the same dimensions and normalization. Index type, distance metric, quantization and HNSW settings do not change a stored vector. A different provider module can still serve the same model, so the module name alone proves nothing either way. A collection or property name is part of the input when `vectorizeClassName` or `vectorizePropertyName` is on, so check those settings before you rename anything.
+
+Recompute when the encoding or the input changes: a different model, a different set of vectorized properties, different dimensions or a different vector type. Omit the vector and let the target vectorizer compute it, or supply vectors that you generated. Recomputing through an API-backed vectorizer sends the imported objects to the provider again, so plan for its rate limits and cost; requests can batch many objects, so the request count is not the object count. If you supply vectors, your pipeline owns the embedding work and any provider requests or charges; a local model instead uses your own compute resources.
+
+Each example creates its source and target collection with the same vectorizer. The Python and TypeScript examples copy the `default` target's vector, the Java example copies every target, and all three keep the UUIDs. The C# example inserts objects without vectors, so the target vectorizer recomputes them, and it generates new UUIDs. Its verification therefore checks the object count and a sample read, not object identity.
+
+Object count and successful read-back do not verify a vector migration. A vector whose length differs from the length already established in the index is rejected, but the first vector written to an empty index sets that length, so a length that does not match the configured model is not detected. A vector of the right length from a different model imports without error and still returns neighbors, while the scores and the ranking are not comparable. Compare retrieval results for sample queries against the source collection before you switch traffic, and record the model and inputs that produced each collection's vectors.
+
+The examples assume that writes stay paused and the source stays stable during the copy. If writes can pause, keep them paused through the copy, the verification and the switch: a write that lands between reading an object and writing its copy is not in the target.
+
+If writes must continue, a second copy pass is not enough. The Python, TypeScript and Java examples write objects in batches by source UUID, and a batch write replaces an object that already has that UUID, so an older copy can overwrite a newer update. Re-copying the objects that still exist in the source also misses deletes and leaves the deleted objects in the target. Capture inserts, updates and deletes from the start of the copy, apply them in source order, and prevent an older copied record from overwriting a newer update. Dual-writing alone does not guarantee that the target preserves source order or deletion state while older copies are still being written; the reconciliation plan must handle those races and include deletes. A [collection alias](./collection-aliases.mdx) changes where queries go. It does not copy data, and it does not reconcile writes.
 
 ## Collection → Collection
 

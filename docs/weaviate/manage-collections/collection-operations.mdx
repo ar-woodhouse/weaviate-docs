@@ -643,7 +643,7 @@ import CautionSchemaDeleteClass from "/_includes/schema-delete-class.mdx";
 
 ## Add a property
 
-You can add new properties to a collection, but you cannot change an existing one. See [Collection definition: Mutability](../config-refs/collections.mdx#mutability) for the full list of what can change after creation.
+You can add new properties to a collection. A property's name, data type and `textAnalyzer` settings cannot change after creation. To change a property's `searchable`, `filterable` or `rangeFilters` index settings, or its tokenization, use the [index API](./inverted-index.mdx#migrate-or-rebuild-an-inverted-index). See [Collection definition: Mutability](../config-refs/collections.mdx#change-a-collection-that-holds-data) for the other routes.
 
 <details>
 <summary>
@@ -654,14 +654,16 @@ There are no index limitations when you add collection properties before you imp
 
 If you add a new property after you import data, there is an impact on indexing.<br/><br/>
 
-Property indexes are built at import time. If you add a new property after importing some data, pre-existing objects index aren't automatically updated to add the new property. This means pre-existing objects aren't added to the new property index. Queries may return unexpected results because the index only includes new objects.<br/><br/>
+Index entries for a property are written when an object is written. If you add a new property after you import data, the existing objects have no value for it, and the inverted-index metadata for the property (its null state and its property length, where those indexes are enabled) is missing for them.<br/><br/>
 
-To create an index that includes all of the objects in a collection, do one of the following:
+A write that changes the property writes its value and metadata entries for that object. A write that leaves the property absent, including an explicit null on an object that never had a value, does not add the missing entries. A new insert of the object writes them. Objects that get neither can be missed by a filter on the property's null state or length.<br/><br/>
+
+To give every object a value and complete metadata, do one of the following:
 
 - New collections: Add all of the collection's properties before importing objects.
 - Existing collections: Export the existing data from the collection. Re-create it with the new property. Import the data into the updated collection.
 
-We are working on a re-indexing API to allow you to re-index the data after adding a property. This will be available in a future release.
+The [index API](./inverted-index.mdx#migrate-or-rebuild-an-inverted-index) can rebuild a property's index from stored values, but it cannot add values or the missing metadata entries, so it does not remove the limitation described here.
 
 </details>
 

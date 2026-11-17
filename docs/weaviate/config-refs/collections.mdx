@@ -200,12 +200,14 @@ A description of the collection. This is for your reference and can also provide
 | [`name`](#name)                          | String  | The name of the property.                                                                                                    | (Required) | No      |
 | [`dataType`](./datatypes.md)             | Array   | An array containing one or more data types. For cross-references, use the capitalized collection name (e.g., `["Article"]`). | (Required) | No      |
 | `description`                            | String  | A description of the property for your reference.                                                                            | `null`     | Yes     |
-| [`tokenization`](#tokenization)          | String  | For `text` properties, specifies how the text is split into tokens for inverted indexing.                                    | `word`     | No      |
+| [`tokenization`](#tokenization)          | String  | For `text` properties, specifies how the text is split into tokens for inverted indexing.                                    | `word`     | Via index API |
 | [`indexInverted`](#inverted-index)       | Boolean | If `true`, inverted index is enabled for this property.                                                                      | `true`     | No      |
-| [`indexFilterable`](#inverted-index)     | Boolean | If `true`, builds a roaring bitmap index for this property to allow for efficient filtering.                                 | `true`     | No      |
-| [`indexSearchable`](#inverted-index)     | Boolean | If `true`, builds a searchable map index for this property, suitable for BM25 or hybrid search.                              | `true`     | No      |
-| [`indexRangeFilters`](#inverted-index)   | Boolean | If `true`, builds a roaring bitmap index for numerical range-based filtering.                                                | `false`    | No      |
+| [`indexFilterable`](#inverted-index)     | Boolean | If `true`, builds a roaring bitmap index for this property to allow for efficient filtering.                                 | `true`     | Via index API |
+| [`indexSearchable`](#inverted-index)     | Boolean | If `true`, builds a searchable map index for this property, suitable for BM25 or hybrid search.                              | `true`     | Via index API |
+| [`indexRangeFilters`](#inverted-index)   | Boolean | If `true`, builds a roaring bitmap index for numerical range-based filtering.                                                | `false`    | Via index API |
 | `moduleConfig`                           | Object  | Module-specific settings, such as skipping vectorization for this property.                                                  | `{}`       | No      |
+
+"Via index API" means the separate [index API](../manage-collections/inverted-index.mdx#migrate-or-rebuild-an-inverted-index) (Preview), not a collection-definition update. A property's name, data type and `textAnalyzer` settings cannot change.
 
 <details>
   <summary>Example property configuration -  JSON object</summary>
@@ -326,7 +328,7 @@ The check was added in `v1.38.0`, and backported to `v1.35.20`, `v1.36.15`, and 
 
 You can customize how `text` data is tokenized and indexed in the inverted index. Tokenization influences the results returned by the [`bm25`](../api/graphql/search-operators.md#bm25) and [`hybrid`](../api/graphql/search-operators.md#hybrid) operators, and [`where` filters](../api/graphql/filters.md).
 
-Tokenization is a property-level configuration for `text` properties. [See how to set the tokenization option using a client library](../manage-collections/vector-config.mdx#property-level-settings)
+Tokenization is a property-level configuration for `text` properties. [See how to set the tokenization option using a client library](../manage-collections/vector-config.mdx#property-level-settings). You can change the tokenization of an existing text property, including how imported objects are tokenized, with the [index API](../manage-collections/inverted-index.mdx#migrate-or-rebuild-an-inverted-index) (Preview).
 
 <details>
   <summary>Example property configuration -  JSON object</summary>
@@ -1154,7 +1156,19 @@ import CollectionMutableParameters from "/_includes/collection-mutable-parameter
 
 </details>
 
-After you create a collection, you can [add new properties](../manage-collections/collection-operations.mdx#add-a-property). You cannot modify existing properties after you create the collection. You can also [add new named vectors](../concepts/data.md#adding-a-named-vector-after-collection-creation).
+### Change a collection that holds data
+
+Some parameters cannot change in place. Before you choose a route, decide what happens to the objects you already have, and how you will verify the result. Four routes cover most changes.
+
+**Extend the definition.** [Adding a property](../manage-collections/collection-operations.mdx#add-a-property) or [adding a named vector](../concepts/data.md#adding-a-named-vector-after-collection-creation) does not rewrite existing objects. A new property has no value for them, and a new named vector stays empty. A write that sets the value, or that supplies the vector, fills it for that object. An update that does neither leaves a missing vector missing. See [adding a named vector](../concepts/data.md#adding-a-named-vector-after-collection-creation) for the ways to fill a vector.
+
+**Rebuild an index from stored values.** The [index API](../manage-collections/inverted-index.mdx#migrate-or-rebuild-an-inverted-index) is Preview. It creates, retokenizes or rebuilds a property's `searchable`, `filterable` and `rangeFilters` index from stored values, so existing objects are covered. It cannot add values to a property that was added after import, change `textAnalyzer` settings, or write the null-state and property-length metadata entries that are missing for such a property.
+
+**New vectors.** A different model, a different set of vectorized properties, different dimensions or a different vector type needs new vectors. A collection that accepts another named vector can take a new target with its own `vectorizer` and vector index settings, and the existing vector keeps its own. Otherwise create a new collection. See [Add new named vectors](../manage-collections/vector-config.mdx#add-new-named-vectors) for the layouts that accept another target. Copy stored vectors only when the target vector space is compatible. See [Migrate data](../manage-collections/migrate.mdx#copy-the-vectors-or-recompute-them).
+
+**New property or collection.** A property's name, data type and `textAnalyzer` settings cannot change in place. Add a differently named property with the new settings, write its values, then move queries to it. A collection name change needs a new collection.
+
+For a new collection, [migrate the data](../manage-collections/migrate.mdx), verify retrieval, then switch traffic. If the application queries a [collection alias](#collection-aliases), point the alias at the new collection. An alias changes where queries go; it does not copy data or catch up writes that continue during the copy.
 
 ## Auto-schema
 
