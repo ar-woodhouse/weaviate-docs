@@ -103,7 +103,7 @@ The `rerank` field can be used to [reorder the search results](../../search/rera
 | `property`   | yes      | `string`   | Which property to pass to the reranker. For example, you may want to run a similarity search on a Products collection, then rerank specifically on the Name field. |
 | `query`      | no       | `string`    | Optionally specify a different query. |
 
-A `rerank` query will cause corresponding additional `score` field to be available.
+A `rerank` query adds the reranker's score as `_additional { rerank { score } }`. This value is separate from `_additional.score` and `_additional.distance`, and reranking does not change those values.
 
 For examples, see the [related how-to page](../../search/rerank.md).
 

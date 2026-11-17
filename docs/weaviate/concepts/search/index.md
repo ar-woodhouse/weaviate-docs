@@ -94,7 +94,7 @@ Filters reduce the number of objects based on specific criteria. This can includ
 Effective filtering can significantly improve search relevance. This is due to filters' ability to precisely reduce the result set based on exact criteria.
 
 :::info How do filters interact with searches?
-Weaivate applies [pre-filtering](../filtering.md), where filters are performed before searches.
+Weaviate applies [pre-filtering](../filtering.md), where filters are performed before searches.
 <br/>
 
 This ensures that search results overlap with the filter criteria to make sure that the right objects are retrieved.
@@ -187,9 +187,11 @@ Keyword search is great where occurrences of certain words strongly indicate the
 
 For example:
 - Find medical, or legal literature containing specific terms.
-- Search for technical documentation or API references where exact terminology is crucial.
-- Locating specific product names or SKUs in an e-commerce database.
-- Finding code snippets or error messages in a programming context.
+- Search for technical documentation or API references where terminology is crucial.
+- Locating specific product names or SKUs in an e-commerce database, where the query words and the stored words tokenize to the same terms.
+- Finding code snippets or error messages by their words, when partial matches are acceptable.
+
+With the default `word` tokenization, keyword search compares tokens, not whole strings, and a text filter does the same. To make the whole value of a code or an order number a hard constraint, store it in a `field`-tokenized property and filter on it with `Equal`. On a `field` property the whole value is also a single token, so keyword search can match it, but it is still a ranked result subject to the result limit. See [Match a code or identifier as one value](../../search/index.mdx#match-a-code-or-identifier-as-one-value).
 
 </details>
 
@@ -380,6 +382,8 @@ Weaviate uses a variety of metrics to rank search results of a given query. The 
 - Vector distance: A vector distance measure between the query and the object.
 - BM25F score: A keyword search score calculated using the BM25F algorithm.
 - Hybrid score: A combined score from vector and keyword searches.
+
+These values are not interchangeable. A `distance` is a geometric measure between the query vector and the object's stored vector under the configured metric, so the same value means the same relationship in any query. On a [compressed index](../vector-quantization.md), the search compares compressed data, so a distance can be an estimate; when full-precision rescoring is enabled, the returned distance is recalculated from the original vectors. BM25F and hybrid scores depend on the rest of the data and on the query, so they are comparable only within one query and one configuration. A reranker adds its own score for each object, from one model and one query. Use `distance`, or `certainty` where the metric supports it, for a similarity threshold, and compare result positions on a fixed query set to judge ranking quality.
 
 ## Named vectors
 

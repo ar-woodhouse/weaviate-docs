@@ -120,13 +120,69 @@ export const searchTopicsData = [
 
 | Search type | What it matches | Use it when | Cost |
 | :-- | :-- | :-- | :-- |
-| [Vector](./similarity.md) | Meaning, through vector distance | The wording of the query and the data differ, or the data is not text | One vector search per query |
-| [Keyword (BM25)](./bm25.md) | Exact terms, ranked by BM25F | Names, codes, error strings, or any term that must appear literally | Inverted index lookup |
-| [Hybrid](./hybrid.md) | Both, fused into one ranking | You want one query to handle both cases. A good default for text search | Both of the above, plus fusion |
+| [Vector](./similarity.md) | Meaning, through vector distance | The wording of the query and the data differ, or the data is not text | Vector-index work for each target vector and shard, plus query encoding when the query is text |
+| [Keyword (BM25)](./bm25.md) | Tokens after analysis, ranked by BM25F | Words, or terms that are already single tokens under the property's tokenization | Inverted index lookup |
+| [Hybrid](./hybrid.md) | Both, fused into one ranking | You want one query to handle both cases. A good default for text search | Work for the legs that run, plus fusion. `alpha` 0 or 1 runs one leg |
 | [Boost](./boost.md) | The search above, re-scored | Ranking should also reflect recency, popularity or a category, without dropping anything | In-memory rescoring of the candidates |
-| [Rerank](./rerank.md) | The search above, re-ordered by a model | Precision at the top of the list matters more than latency | One model call per query |
+| [Rerank](./rerank.md) | The search above, re-ordered by a model | Precision at the top of the list matters more than latency | Model inference over the candidate batches |
 
 Boost and rerank are second-stage operations: they reorder what the first search retrieved. Neither adds results, so if an object is not in the initial result set, neither can pull it in. Use a [filter](./filters.md) when a condition must remove objects instead of demoting them.
+
+## Match a code or identifier as one value
+
+Keyword search and text filters both compare **tokens**, not strings. The tokenization configured on the property decides what a token is, so an identifier is normally split into several parts before it is indexed.
+
+With the default `word` tokenization, the stored value `ERR_4032` and the query `ERR_4032` both become `err` and `4032`. The default search operator accepts a match on either token, so a search for `ERR_4032` can also return an object whose code is `ERR_4033`, because the two values share the token `err`. The `and` operator requires every token, but it still matches `ABC_ERR_4032_OLD`, because order and the surrounding tokens do not matter.
+
+Tuning `alpha`, adding a property boost or adding a reranker cannot remove that match from the eligible set: each of them reorders or rescores the objects that token matching retrieved. With a fixed page size a false match can move down the page or off it, but the object still matches, so it comes back when the page size or the ranking changes. Change the index representation, or remove objects that do not qualify:
+
+- Store the identifier in a [`field`-tokenized](../config-refs/collections.mdx#tokenization) property to keep the whole value as one token, and filter on it with `Equal`. A text `Equal` filter uses the same tokenization as the property, so on a `word` property it also returns partial matches. `field` does not change case, so store the value in one canonical form; analyzer settings such as ASCII folding still apply.
+- Keep `word` tokenization and use the [`and` operator](./bm25.md#and) when partial or unordered matching is acceptable. Tokens are still compared, not strings.
+- Use a [`Like`](./filters.md#filter-text-on-partial-matches) prefix filter on a `field`-tokenized property when a user types only the start of a code. On a `word` property the pattern is tokenized like any other value, so `ERR_40*` becomes `err` and `40*`, and the filter can match more than a prefix.
+
+If users type identifiers with inconsistent case or punctuation, decide which differences carry meaning, then handle them the same way on both sides: store a canonical form and build the filter from it, or keep the exact value and accept case- and punctuation-sensitive matching. Keep the case or punctuation that changes the meaning of an identifier, and choose the property tokenization to match that decision. Ranking steps do not resolve this.
+
+## Example: an identifier, an intent and a constraint
+
+A support query such as `ERR_4032 still failing after retry, open tickets since 2026-01-01` mixes three kinds of input. Split it before the query, not inside the search string.
+
+| Part of the request | What it needs | Where it belongs |
+| :-- | :-- | :-- |
+| `ERR_4032` | A whole-value match | A filter on a `field`-tokenized property |
+| `still failing after retry` | Relevance | The query text of a hybrid or vector search |
+| `open`, `since 2026-01-01` | Removal of objects | More filters |
+
+These snippets assume an `Issue` collection with `code` (`text`, `field`), `description` (`text`, `word`), `status` (`text`, `field`) and `openedAt` (`date`), a vectorizer configured for `description`, an open `client` connection ([connect to Weaviate](../connections/index.mdx)), and an application that extracts the identifier from the user's input.
+
+```python
+from datetime import datetime, timezone
+from weaviate.classes.query import Filter
+
+issues = client.collections.get("Issue")
+result = issues.query.hybrid(
+    query="still failing after retry",
+    filters=Filter.all_of([
+        Filter.by_property("code").equal("ERR_4032"),
+        Filter.by_property("status").equal("open"),
+        Filter.by_property("openedAt").greater_or_equal(datetime(2026, 1, 1, tzinfo=timezone.utc)),
+    ]),
+    limit=10,
+)
+```
+
+The `openedAt` bound is inclusive and in UTC, so a ticket opened at exactly `2026-01-01T00:00:00Z` passes, and one opened at `2025-12-31T23:59:59Z` does not. `status` is `field`-tokenized, so `Equal "open"` matches the whole value only: a status of `open pending` does not pass.
+
+Remove the identifier from the query text when the application extracts it. The filter guarantees the value, so the query text is free to describe only the intent that ranking should use. If the identifier cannot be extracted, search it with keyword search and accept partial matches, or use a `Like` prefix filter on a `field`-tokenized property, and check the tokens first with the [tokenize endpoints](../config-refs/indexing/inverted-index.mdx#tokenize-endpoint).
+
+## If an expected result is missing
+
+Three questions, each with a different fix.
+
+1. **Was the object retrieved at all?** Compare the tokens of the stored value with the tokens of the query text, using the [tokenize endpoints](../config-refs/indexing/inverted-index.mdx#tokenize-endpoint). Keyword retrieval matches an object when at least one query token, after analysis, also occurs in one of the searched properties. If the two sets do not overlap, a keyword search, or the keyword leg of a hybrid search, cannot return that object, whatever the ranking parameters; a partial overlap can still match, because the default operator accepts one token. Also confirm that the object is searchable and that your filter passes it; a `word`-tokenized text filter compares tokens, so it can pass objects you did not expect, and can fail a whole-value comparison you did expect.
+2. **Did it fall outside a candidate set?** The search works on a bounded set of candidates, and later steps only see what they receive. `limit` and `offset` set the page. `autocut` cuts the list at jumps in the result metrics, so it can return fewer objects than `limit` allows. The MMR candidate set bounds what diversity selection can choose from ([similarity](./similarity.md#diversity-selection-mmr)). The boost `depth` bounds what boost can reorder ([boost](./boost.md#depth-and-pagination)). Hybrid search fetches a bounded number of candidates per search leg ([hybrid](./hybrid.md)). In hybrid search, `maxVectorDistance` also limits the keyword candidates when both legs run: an object must be in the vector results and within that distance. Repeat the query with a larger `limit` and without `autocut`: if the object appears, a candidate or page limit is the cause. A recovery at a larger limit does not by itself show that the index is faulty.
+3. **Was it returned but ranked low?** Then change ranking: hybrid `alpha`, property boosts, boost conditions, or a reranker. Compare the positions of known relevant objects, not the scores.
+
+To tell these apart over time, keep one query set of identifiers with known answers and one of natural-language questions. Check presence at a high `limit` first, then the position at the page size you serve. [Search scores](../concepts/search/index.md#search-scores-and-metrics) are not a substitute for that comparison.
 
 ## Questions and feedback
 

@@ -53,9 +53,17 @@ You can use reranking in a GraphQL query as follows:
 }
 ```
 
-This query retrieves 10 results from the `JeopardyQuestion` class, using a hybrid search with the query “flying”. It then re-ranks the results using the `answer` property, and the query “floating”.
+This query retrieves 10 results from the `JeopardyQuestion` collection, using a vector search (`nearText`) with the query "flying". It then re-ranks the results using the `answer` property, and the query "floating".
 
-You can specify which `property` of the `JeopardyQuestion` class you want to pass to the reranker. Note that here, the returned `score` will include the score from the reranker.
+The `rerank { score }` field holds the reranker's score for that object. You can specify which `property` of the `JeopardyQuestion` collection you want to pass to the reranker. The reranker's score is a separate field from `_additional.score` and `_additional.distance`, which keep the values from the search that produced them; reranking changes the order of the list, not those values. The client APIs return the reranker's value as `metadata.rerank_score` (Python) and `metadata.rerankScore` (TypeScript).
+
+### What a rerank score tells you
+
+The reranker scores each candidate against the query with one model, so its score orders the objects of one response. A higher value means that this model ranked the object higher for this query. It is not a measure of search quality, and it is not a threshold that carries over to another query, model or dataset. To judge a ranking change, use a fixed set of queries with known relevant objects and compare the positions of those objects.
+
+### Candidates and cost
+
+The reranker sees the candidates that the search returned, after `limit` and after any stage that reduced the set. A larger `limit` can give it more candidates to score, so the number of documents scored per query can grow with it, but `autocut` and the MMR `limit` can keep the set smaller. The reranker modules send the candidates in batches, so a larger candidate set can also need more than one request per query. The batch size is fixed inside each reranker module and is not part of the query API.
 
 ## Further resources
 
