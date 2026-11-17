@@ -14,14 +14,14 @@ Vector indexes can use *hot* or *warm* resources, depending on the index type. I
 
 :::tip Indexing recommendations
 
-- For multi-tenant configurations, use a [dynamic index](#dynamic-indexes).
-- Consider the size of your data set when choosing an index type:
-    - If your object count is low, consider a flat index.
+- For collections or tenants that start small and may outgrow a flat index, consider a [dynamic index](#dynamic-indexes). Check its [async-indexing requirement, one-way conversion and lack of multi-vector support](../../concepts/indexing/vector-index.md#dynamic-index).
+- Match the index type to the data you expect in each collection or tenant, and confirm it with measurements:
+    - If your object count is low, consider a flat index. A flat index scans every vector, so confirm the latency you need with your dimensions and filters.
     - For larger data sets, use an HNSW index.
-    - If you are unsure, use a dynamic index.
+    - If the memory for an HNSW index does not fit your budget, compare a compressed HNSW index with the disk-based [HFresh index](../../concepts/indexing/vector-index.md#hfresh-index).
 - If you can trade off some accuracy, consider using [compression](./compression.mdx):
-    - For HNSW indexes, [PQ](../../configuration/compression/pq-compression.md)/[SQ](../../configuration/compression/sq-compression.md)/[BQ](../../configuration/compression/bq-compression.md) can reduce memory requirements.
-    - For flat indexes, [binary quantization (BQ)](../../configuration/compression/bq-compression.md) can improve search speeds.
+    - For HNSW indexes, [RQ](../../configuration/compression/rq-compression.md) needs no training data. [PQ](../../configuration/compression/pq-compression.md) and [SQ](../../configuration/compression/sq-compression.md) need training data. Each technique changes recall differently, so [measure it](./compression.mdx#recall).
+    - For flat indexes, [RQ](../../configuration/compression/rq-compression.md) and [binary quantization (BQ)](../../configuration/compression/bq-compression.md) are available.
 - Consider your query needs when configuring inverted indexes:
     - If disk space is not a concern, [index all properties](#property-level-configuration) for searching & filtering.
     - If metadata filtering is important, index it [at the collection level](#collection-level-configuration).

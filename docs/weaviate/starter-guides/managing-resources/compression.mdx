@@ -73,12 +73,62 @@ Recall measures how well an algorithm finds true positive matches in a data set.
 
 A compressed vector has less information than the corresponding uncompressed vector. An uncompressed vector that would normally match a search query might be missed if the target information is missing in the compressed vector. That missed match lowers recall.
 
-Typical recall rates:
+For an approximate index, recall is usually measured as top-k overlap with an exact search. Run the same query, with the same filters and the same `limit` (the `k`), against an exact index and against the index you plan to serve. The exact index must use the same vectors, the same distance metric and the same filters. Count the objects that both return in their first `k` results, and divide by the number of objects that the exact search returned. If the exact search returns fewer than `k` eligible objects, for example because a filter excludes the rest, divide by that smaller number. Results at equal distances can come back in a different order, so expect the overlap to vary slightly when a query has ties at the cutoff. This measures how much the index approximation, including compression, changes the result set. It does not measure whether the returned objects answer the user's question, which depends on the embedding model and on your relevance evaluation.
 
-- PQ: Varies based on configuration
-- SQ: 95-97% recall
-- RQ: 98-99% recall for 8-bit RQ; 4-bit and 1-bit RQ start lower and rely on rescoring
-- BQ: Varies significantly based on data and model characteristics
+A recall figure such as 95-99% describes top-k overlap on the data set that was tested. It does not transfer to another data set, another `limit`, another quantization bit width or another set of filters. Measure the overlap on your own data before you choose a compression setting.
+
+To measure it:
+
+1. Create a reference collection with a `flat` index and no quantizer, and import the same objects and vectors. A reference that inherits a quantizer measures compression, not the graph. This recipe covers ordinary single-vector embeddings; `flat` and `dynamic` do not accept multi-vector embeddings, so a multi-vector workload needs a different procedure, which this page does not provide.
+2. Create the collection you plan to serve, with the compression settings you plan to use.
+3. Run the same queries, with the same filters, the same target vectors and the same `limit`, against both collections.
+4. Compare the returned IDs. A query whose candidate set is smaller than the [flat-search cutoff](/weaviate/concepts/filtering.md#flat-search-cutoff) is answered by a direct scan. That scan does not exercise the graph, but on a compressed index it still uses compressed distances and any rescoring, so it is not a full-precision exact reference.
+
+The following Python example creates such a pair of collections, and compares their top-k results for one query:
+
+```python
+import weaviate
+from weaviate.classes.config import Configure, VectorDistances
+
+client = weaviate.connect_to_local()
+
+# Exact reference: flat index, full-precision vectors, no quantizer.
+# Quantizer.none() sets skipDefaultQuantization, so a server-wide
+# DEFAULT_QUANTIZATION does not compress this collection.
+client.collections.create(
+    name="RefFlat",
+    vector_config=Configure.Vectors.self_provided(
+        vector_index_config=Configure.VectorIndex.flat(distance_metric=VectorDistances.COSINE),
+        quantizer=Configure.VectorIndex.Quantizer.none(),
+    ),
+)
+
+# Candidate: the compression settings you plan to serve.
+client.collections.create(
+    name="HnswRq",
+    vector_config=Configure.Vectors.self_provided(
+        vector_index_config=Configure.VectorIndex.hnsw(distance_metric=VectorDistances.COSINE),
+        quantizer=Configure.VectorIndex.Quantizer.rq(bits=8),
+    ),
+)
+
+# Import the same objects, vectors and UUIDs into both collections, then
+# query both with the same filters and limit.
+k = 10
+query_vector = [...]  # Replace with the query vector to test
+exact = client.collections.use("RefFlat").query.near_vector(near_vector=query_vector, limit=k).objects
+served = client.collections.use("HnswRq").query.near_vector(near_vector=query_vector, limit=k).objects
+
+exact_ids = {str(o.uuid) for o in exact}
+if not exact_ids:
+    # An empty exact set has nothing to compare: check the import and async catch-up.
+    raise SystemExit("the exact search returned no objects")
+recall = len(exact_ids & {str(o.uuid) for o in served}) / len(exact_ids)
+```
+
+With async indexing enabled, a collection can return no vector results until its index catches up. Wait for the import queue to drain before you compare the results.
+
+If the instance sets [`DEFAULT_QUANTIZATION`](/deploy/configuration/env-vars/index.md#DEFAULT_QUANTIZATION), the `quantizer=Configure.VectorIndex.Quantizer.none()` argument in the example keeps the reference uncompressed. That argument sets `skipDefaultQuantization`. Over REST, set the same flag in `vectorIndexConfig`. See [Resource planning: Measure ANN recall](/weaviate/concepts/resources.md#measure-ann-recall).
 
 To improve recall with compressed vectors, Weaviate over-fetches a list of candidate vectors during a search. For each item on the candidate list, Weaviate fetches the corresponding uncompressed vector. To determine the final ranking, Weaviate calculates the distances from the uncompressed vectors to the query vector.
 
@@ -129,9 +179,9 @@ Starting in v1.22, Weaviate has an optional, [asynchronous indexing](/weaviate/c
 
 Most applications benefit from compression. The cost savings are significant. In [Weaviate Cloud](https://weaviate.io/pricing), for example, compressed collections can be more than 80% cheaper than uncompressed collections.
 
-- For most users with HNSW indexes who want the best combination of simplicity, performance, and recall, **consider 8-bit RQ compression**. 8-bit RQ provides 4x compression with 98-99% recall and requires no configuration or training. It's ideal for standard use cases with embeddings from providers like OpenAI.
+- For HNSW indexes where the vector payload dominates memory, **consider 8-bit RQ compression** as a starting point. 8-bit RQ needs no training data and uses about 1 byte per dimension after padding to a multiple of 64, plus 16 bytes per vector. Its effect on recall depends on your data. Measure [top-k overlap with an exact search](#recall) at the `limit` you serve, and keep rescoring enabled until the measurement supports changing it.
 
-- If you have a small collection that uses a flat index, consider RQ compression. The flat index with RQ enabled is smaller and much faster than the uncompressed equivalent.
+- If you have a small collection that uses a flat index, consider RQ compression. A flat index with RQ enabled is smaller, and it can be faster because each query reads fewer bytes.
 
 - If you have a very large data set or specialized search needs, consider PQ compression. PQ compression is very configurable, but it requires more expertise to tune well than SQ, RQ, or BQ.
 

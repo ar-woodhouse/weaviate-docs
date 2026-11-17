@@ -128,7 +128,7 @@ When SQ is enabled, Weaviate boosts recall by over-fetching compressed results. 
 
 <Rq8bit/>
 
-8-bit RQ provides 4x compression while maintaining 98-99% recall in internal testing. The method works as follows:
+8-bit RQ provides 4x compression and, in internal testing, 98-99% top-k overlap with an exact search on the data sets we used. Another data set can give a different figure; see [Compression: Recall](../starter-guides/managing-resources/compression.mdx#recall). The method works as follows:
 
 1. **Fast pseudorandom rotation**: The input vector is transformed using a fast rotation based on the Walsh Hadamard Transform. This rotation takes approximately 7-10 microseconds for a 1536-dimensional vector. The output dimension is rounded up to the nearest multiple of 64.
 

@@ -79,14 +79,15 @@ Then consider enabling multi-tenancy, and assigning each subset of data to a sep
 
 ### Set a vector index type to suit your data scale
 
-For many cases, the default, `hnsw` index type is a good starting point. However, in some cases, using `flat` indexes, or `dynamic` indexes may be more appropriate.
+For many cases, the default, `hnsw` index type is a good starting point. The best choice depends on how much data you expect in each collection or tenant, and on the memory and disk you can give it. These starting points are not fixed thresholds: confirm them with the measurements in [Concepts: Resource planning](../concepts/resources.md#measure-before-you-change).
 
-- `flat` indexes are useful when you know that each collection will only ever contain a small number of vectors (e.g. fewer than 100,000).
-    - They use very little memory, but can be slow for large datasets.
-- `dynamic` indexes start with a `flat` index, and automatically switch to an `hnsw` index when the number of vectors in the collection exceeds a certain threshold.
-    - They are a good compromise between memory usage and query performance.
+- Start with `hnsw` without compression when the vector payload and the graph fit in memory with room for import peaks. It has no compression step, so only the graph approximates the result.
+- Consider an `hnsw` index with [8-bit RQ](../configuration/compression/rq-compression.md) when the vector payload dominates memory. 8-bit RQ needs no training data (4-bit RQ needs training only when you enable `centering`). Measure the recall effect before you rely on it.
+- Consider `flat` indexes for collections or tenants that stay small. A `flat` index has no HNSW graph, but a query scans the eligible vectors, so filters, dimensions, the optional BQ or RQ code cache and storage speed drive the latency. Measure it with your queries rather than relying on an object count.
+- Consider `dynamic` indexes when many collections or tenants start small and some may grow. The [dynamic index](../concepts/indexing/vector-index.md#dynamic-index) is experimental, requires async indexing, converts from flat to HNSW only, and does not support multi-vector embeddings.
+- Consider `hfresh` when an `hnsw` index does not fit your memory budget. It supports `cosine` and `l2-squared` distance metrics only, it stores posting lists on disk, and its `replicas` setting assigns vectors to posting lists but is not the database replication factor. Measure recall and latency on your storage.
 
-Typically, multi-tenant setups can benefit from using `dynamic` indexes, as they can automatically switch to `hnsw` indexes when the number of vectors in a tenant exceeds a certain threshold.
+Reconsider the choice when peak memory during an import approaches the container limit, when measured top-k overlap with an exact search falls below your target, when latency misses the target at production concurrency and filters, or when the disk budget for vectors, codes and replicas is exceeded.
 
 :::tip Further resources
 - [How-to: Set the vector index type](../manage-collections/vector-config.mdx#set-vector-index-type)
@@ -97,14 +98,14 @@ Typically, multi-tenant setups can benefit from using `dynamic` indexes, as they
 
 As the size of your dataset grows, the accompanying vector indexes can lead to high memory requirements and thus significant costs. Especially if the `hnsw` index type is used.
 
-If you have a large number of vectors, consider using vector quantization to reduce the memory footprint of the vector index. This will reduce the required memory, and allow you to scale more effectively at lower costs.
+If you have a large number of vectors, consider vector quantization. For an `hnsw` index it changes what the index caches, which can reduce index memory. It also adds compressed codes to disk, and the full-precision vectors remain in the object store.
 
-If memory is your priority, you can also consider the disk-based [HFresh index](/weaviate/concepts/vector-index#hfresh-index), an index-level alternative to quantization for reducing the memory footprint.
+If memory is your priority, you can also consider the disk-based [HFresh index](/weaviate/concepts/vector-index#hfresh-index), an index-level alternative to quantization for reducing the memory footprint. It reads posting lists from disk, so compare its recall, latency and disk use with a compressed `hnsw` index on your data.
 
 ![Overview of quantization schemes](../../../_includes/images/concepts/quantization_overview_light.png#gh-light-mode-only "Overview of quantization schemes")
 ![Overview of quantization schemes](../../../_includes/images/concepts/quantization_overview_dark.png#gh-dark-mode-only "Overview of quantization schemes")
 
-For HNSW indexes, we suggest enabling [rotational quantization (RQ)](../configuration/compression/rq-compression.md) as a starting point. It provides significant memory usage benefits and almost no loss in query accuracy. 
+For HNSW indexes, an 8-bit [rotational quantization (RQ)](../configuration/compression/rq-compression.md) is a reasonable starting point when the vector payload dominates memory. 8-bit RQ needs no training data, and it uses about 1 byte per dimension after padding to a multiple of 64, plus 16 bytes per vector. The effect on recall depends on your data, so measure [top-k overlap with an exact search](../starter-guides/managing-resources/compression.mdx#recall) before you rely on it, and keep rescoring enabled until the measurement supports changing it.
 
 import CompressionByDefault from '/_includes/compression-by-default.mdx';
 
@@ -130,26 +131,14 @@ Set `DISK_USE_WARNING_PERCENTAGE` and `DISK_USE_READONLY_PERCENTAGE` to adjust t
 
 ### Plan memory allocation
 
-When running Weaviate, its memory footprint is a common bottleneck. As a rule of thumb, you can expect to need:
+When running Weaviate, its memory footprint is a common bottleneck. Start from the vector payload, then add the other components. For uncompressed `float32` vectors:
 
-- 6GB of memory for 1 million, 1024-dimensional vectors
-- 1.5GB of memory for 1 million, 256-dimensional vectors
-- 2GB of memory 1 million, 1024-dimensional vectors with quantization enabled
+- 1 million 1,024-dimensional vectors hold 4.096 GB of vector payload.
+- 1 million 256-dimensional vectors hold 1.024 GB of vector payload.
 
-<details>
-  <summary>How did we come up with this figure?</summary>
+These figures use decimal GB and cover the payload only. They exclude the HNSW graph, cache bookkeeping, compression training data and codebooks, write buffers and the Go runtime, so they are not a memory requirement for an instance. Count each named vector. For HNSW multi-vector embeddings without MUVERA, count component vectors; with MUVERA, count the encoded vectors. For a node's memory limit, add every database shard replica that the node hosts. Compression changes the cached representation, not the graph, its ratio does not apply to total memory use, and the full-precision vectors remain in the object store.
 
-Without quantization, each vector is stored as an n-dimensional float. For 1024-dimensional vectors, this means:
-
-- 4 bytes per float * 1024 dimensions * 1M vectors = 4GB
-
-We add some overhead for the index structure, and additional overheads, which brings us to the approximate figure of 6GB.
-
-</details>
-
-:::tip Further resources
-- [Concepts: Resource planning](../concepts/resources.md)
-:::
+[Concepts: Resource planning](../concepts/resources.md#an-example-calculation) shows the components and the calculation. Measure representative imports and queries before you set a production memory limit.
 
 ### How to quickly check the memory usage
 
@@ -158,7 +147,7 @@ In production settings, you should set up cluster [monitoring](/deploy/configura
 There are, however, other ways to quickly check Weaviate's memory usage.
 
 :::note If you have Prometheus monitoring setup already
-If you only care about the overall usage, independent of the contents, and have a prometheus monitoring setup already, you can check the metric `go_memstats_heap_inuse_bytes` which should always show the full memory footprint.
+If you only care about Go heap usage, independent of the contents, and have a Prometheus monitoring setup already, you can check the metric `go_memstats_heap_inuse_bytes`. It reports in-use Go heap spans: heap memory the runtime still holds, including data that is not yet garbage-collected. It is a rough comparison with `GOMEMLIMIT`, and it is not the live-heap figure that Weaviate's memory checks read. It also excludes memory-mapped data and other memory outside the Go heap, so use the container RSS for total usage.
 :::
 
 #### Through `pprof`

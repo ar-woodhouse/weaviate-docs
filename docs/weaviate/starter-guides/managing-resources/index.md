@@ -87,50 +87,61 @@ Effective resource management in Weaviate involves balancing performance, cost, 
 
 The choice of vector index type can have a significant impact on performance and resource usage. Weaviate supports the following index types:
 
-| Index Type | Resource Usage | Performance | Suitable for      | Description |
-|------------|----------------|-------------|-------------------|-------------|
-| HNSW       | 🟥 Hot         | Fast        | Any object count  | A memory-based, fast index ([read more](./indexing.mdx#hnsw-indexes)) |
-| Flat       | 🟨 Warm        | Medium      | &lt;~10k objects    | A disk-based, brute-force index ([read more](./indexing.mdx#flat-indexes)) |
-| Dynamic    | Depends        | Depends     | Any object count  | Transitions from flat to HNSW index at a specified threshold ([read more](./indexing.mdx#dynamic-indexes)) |
-| HFresh     | 🟨 Warm        | Fast        | Large collections | A cluster-based index with memory efficiency for large datasets ([read more](./indexing.mdx#hfresh-indexes)) |
+| Index Type | Resource Usage | Performance | Suitable for | Description |
+|------------|----------------|-------------|--------------|-------------|
+| HNSW       | 🟥 Hot         | Fast        | Any object count | A memory-based, fast index ([read more](./indexing.mdx#hnsw-indexes)) |
+| Flat       | 🟨 Warm        | Medium      | Small sets, confirm latency | A disk-based, brute-force index ([read more](./indexing.mdx#flat-indexes)) |
+| Dynamic    | Depends        | Depends     | Collections that start small | Transitions from flat to HNSW index at a specified threshold ([read more](./indexing.mdx#dynamic-indexes)) |
+| HFresh     | 🟨 Warm        | Sensitive to posting-list I/O | Memory-constrained deployments | A cluster-based index with memory efficiency for large datasets ([read more](./indexing.mdx#hfresh-indexes)) |
 
-The choice of index type depends on the number of objects and the desired performance. As a rule of thumb, use the following guidelines for a multi-tenant collection:
+The choice depends on the representation you use, the latency you measure at the data volume you expect per collection or tenant, and the memory budget. The chart shows starting points for collections and tenants. The [index options](./indexing.mdx) list every choice and its limits.
 
 ```mermaid
 flowchart LR
     %% Define nodes and connections
     subgraph vectorIndex ["Vector Index Selection"]
         direction LR
-        multiTenant{"Is multi-tenancy<br> enabled?"}
-        objCount{"Does the collection have<br> more than 100k objects?"}
-        stayUnder{"Is the collection likely to stay<br> at under 100k objects?"}
+        multiVector{"Does the workload use<br> multi-vector embeddings?"}
+        flatLatency{"Does a flat scan on the data<br> you expect per collection<br> or tenant meet your<br> measured latency target?"}
+        hnswMemory{"Does the HNSW payload<br> and graph fit the<br> memory budget?"}
+        growing{"Do collections or tenants<br> start small and grow, with<br> async indexing and an<br> experimental index<br> acceptable?"}
 
-        multiTenant -->|No| objCount
-        multiTenant -->|Yes| useDynamic["Use Dynamic"]
-        objCount -->|Yes| useHNSW["Use HNSW"]
-        objCount -->|No| stayUnder
-        stayUnder -->|Yes| useFlat["Use Flat"]
-        stayUnder -->|"No/Unsure"| useDynamic["Use Dynamic"]
+        multiVector -->|No| flatLatency
+        multiVector -->|Yes| multiVectorNote["Check the supported<br> index and encoding<br> combinations"]
+        flatLatency -->|Yes| useFlat["Start with flat"]
+        flatLatency -->|No| hnswMemory
+        hnswMemory -->|Yes| growing
+        hnswMemory -->|No| useHfresh["Consider compression<br> or HFresh"]
+        growing -->|Yes| useDynamic["Consider dynamic"]
+        growing -->|No| useHNSW["Start with HNSW"]
     end
 
     %% Style nodes
-    style multiTenant fill:#ffffff,stroke:#B9C8DF,color:#130C49
-    style objCount fill:#ffffff,stroke:#B9C8DF,color:#130C49
-    style stayUnder fill:#ffffff,stroke:#B9C8DF,color:#130C49
+    style multiVector fill:#ffffff,stroke:#B9C8DF,color:#130C49
+    style flatLatency fill:#ffffff,stroke:#B9C8DF,color:#130C49
+    style hnswMemory fill:#ffffff,stroke:#B9C8DF,color:#130C49
+    style growing fill:#ffffff,stroke:#B9C8DF,color:#130C49
 
     %% Terminal nodes
-    style useHNSW fill:#ffffff,stroke:#61BD73,color:#130C49
     style useFlat fill:#ffffff,stroke:#61BD73,color:#130C49
+    style useHNSW fill:#ffffff,stroke:#61BD73,color:#130C49
     style useDynamic fill:#ffffff,stroke:#61BD73,color:#130C49
+    style useHfresh fill:#ffffff,stroke:#61BD73,color:#130C49
+    style multiVectorNote fill:#ffffff,stroke:#D6A400,color:#130C49
 
     %% Style subgraph
     style vectorIndex fill:#ffffff,stroke:#130C49,stroke-width:2px,color:#130C49
 ```
 
-If you are unsure which index type to use, the dynamic index type is a good starting point, as it automatically transitions from a flat to an HNSW index based on the number of objects.
+The questions use your own measurements, not fixed object counts:
 
-- [Starter guide: indexes](./indexing.mdx)
-- [How-to: Set the vector index type](../../manage-collections/vector-config.mdx#set-vector-index-type)
+- **Multi-vector embeddings**: `flat` and `dynamic` do not support them, and HFresh requires MUVERA encoding. See [Multi-vector embeddings](../../configuration/compression/multi-vectors.md).
+- **Flat latency**: a `flat` query scans the eligible vectors, so measure it with your dimensions, filters and the data volume you expect per collection or tenant.
+- **HNSW memory**: size the payload, graph, shards and replicas. See [Resource planning](../../concepts/resources.md#choose-a-starting-configuration).
+- **Growth**: the [dynamic index](../../concepts/indexing/vector-index.md#dynamic-index) requires async indexing, is experimental, converts from flat to HNSW only and does not support multi-vector embeddings. It defers the HNSW memory cost while a collection or tenant is small. Its HNSW stage is an HNSW index, so a partition that grows past the threshold needs the memory budget that the previous question asks about.
+- **Memory-constrained**: compare a compressed HNSW index with HFresh, and measure recall, latency and disk use on your storage.
+
+For details, see the [starter guide: indexes](./indexing.mdx) and [how-to: set the vector index type](../../manage-collections/vector-config.mdx#set-vector-index-type).
 
 ### Vector compression
 
@@ -145,7 +156,7 @@ Weaviate supports the following vector compression methods:
 | Product Quantization (PQ) | HNSW       | Yes               | Each vector becomes an array of integer-based centroids ([read more](../../concepts/vector-quantization.md#product-quantization)) |
 | Binary Quantization (BQ)  | HNSW, Flat | No                | Each vector dimension becomes a bit ([read more](../../concepts/vector-quantization.md#binary-quantization)) |
 | Scalar Quantization (SQ)  | HNSW       | Yes               | Each vector dimension becomes an integer ([read more](../../concepts/vector-quantization.md#scalar-quantization)) |
-| Rotational Quantization (RQ) | All index types | No          | Each vector is rotated then quantized to an integer ([read more](../../concepts/vector-quantization.md#rotational-quantization)) |
+| Rotational Quantization (RQ) | All index types | No, except 4-bit RQ with `centering` | Each vector is rotated then quantized to an integer ([read more](../../concepts/vector-quantization.md#rotational-quantization)) |
 
 As a starting point, use the following guidelines for selecting a compression method:
 

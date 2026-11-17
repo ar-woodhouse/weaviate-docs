@@ -12,6 +12,7 @@ Weaviate supports several types of indexes.
    - **HNSW** - an approximate nearest neighbor (ANN) search-based vector index. HNSW indexes scale well with large datasets.
    - **Flat** - a vector index that is used for brute-force searches. This is useful for small datasets.
    - **Dynamic** - a vector index that is flat when the dataset is small and switches to HNSW when the dataset is large.
+   - **HFresh** - a cluster-based vector index that keeps an index over cluster centroids and posting metadata in memory, and posting lists on disk.
 1. **[Inverted indexes](./inverted-index.md)** - inverted indexes enable BM25 queries or speed up filtering.
 
 You can configure indexes in Weaviate per collection.
