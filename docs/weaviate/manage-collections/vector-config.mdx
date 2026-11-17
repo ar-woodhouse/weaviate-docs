@@ -308,7 +308,7 @@ curl \
 
 <MultiVector/>
 
-Multi-vector embeddings, also known as multi-vectors, represent a single object with multiple vectors, i.e. a 2-dimensional matrix. Multi-vectors are available for named vectors on `hnsw` indexes. From `v1.40`, they are also available on `hfresh` indexes [with MUVERA encoding only](../config-refs/indexing/vector-index.mdx#hfresh-multi-vector). To use multi-vectors, enable it for the appropriate named vector.
+Multi-vector embeddings, also known as multi-vectors, represent a single object with multiple vectors, i.e. a 2-dimensional matrix. Multi-vectors are available for named vectors on `hnsw` indexes. From `v1.40`, they are also available on `hfresh` indexes [with MUVERA encoding only](../config-refs/indexing/vector-index.mdx#hfresh-multi-vector). The `hfresh` variant requires a named vector with `"vectorizer": "none"`, because multi-vector vectorizers are supported only on `hnsw`. To use multi-vectors, enable it for the appropriate named vector.
 
 <Tabs className="code" groupId="languages">
   <TabItem value="py" label="Python">

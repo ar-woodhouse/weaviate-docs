@@ -573,7 +573,7 @@ To perform a hybrid search with user-provided embeddings, provide the query vect
 
 This tutorial showed how to use multi-vector embeddings in Weaviate.
 
-Weaviate allows you to use multi-vector embeddings from `v1.29`, with either the ColBERT model integration, or by providing your own embeddings.
+Weaviate allows you to use multi-vector embeddings from `v1.29`, either by providing your own vectors or with a model integration (`text2multivec-jinaai` on `hnsw` is available from `v1.32`).
 
 Note that when using multi-vector embeddings, the vector index may need to be manually configured to handle the multi-vector embeddings. This is because the shape of the embeddings is different from single-vector embeddings. This is automatically done when using a model integration such as ColBERT, but must be done manually when providing embeddings.
 
