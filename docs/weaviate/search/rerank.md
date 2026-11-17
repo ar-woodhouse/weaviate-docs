@@ -33,6 +33,8 @@ To rerank search results, enable a reranker [model integration](../model-provide
 
 A collection can have multiple rerankers. If multiple `reranker` modules are enabled, specify the module you want to use in the `moduleConfig` section of your schema.
 
+The reranker sees the objects your query retrieved, so raise `limit` to give it more candidates. It then reorders that set; it does not add objects. See [Reranking concepts](../concepts/reranking.md#when-to-rerank) for the trade-off.
+
 </details>
 
 import QueryAgentTip from '/_includes/query-agent-tip.mdx';

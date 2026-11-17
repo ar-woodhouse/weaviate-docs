@@ -12,6 +12,19 @@ With Weaviate, you can perform variety of search types to suit your needs, and c
 
 The following sections provide a conceptual overview of search in Weaviate, including [an overview of the search process and types](#search-process).
 
+## Which search type should I use?
+
+| Search type | What it matches | Use it when | Cost |
+| :---------- | :-------------- | :---------- | :--- |
+| [Keyword](#keyword-search) | Exact terms, ranked by BM25F | The query contains names, codes or error strings that must appear literally | Inverted index lookup |
+| [Vector](#vector-search) | Meaning, through vector distance | The wording of the query and the data differ, or the data is not text | One vector search per query |
+| [Hybrid](#hybrid-search) | Both, fused into one ranking | You want one query to handle both cases. A good default for text search | Both of the above, plus fusion |
+| Multi-target | Several named vectors at once | One object has several vectors (for example text and image) and you want one ranking from them | One vector search per target, plus a join |
+| [Rerank](#rerank) | The search above, re-ordered by a model | Precision at the top of the list matters more than latency | One model call per query plus a larger candidate set |
+| [Generative](#retrieval-augmented-generation-rag) | The retrieved objects, passed to an LLM | You want an answer or a summary, not a list | Retrieval plus one or more model calls |
+
+The search types are covered in depth on this page. For code in each client, see [How-to: search](../../search/index.mdx#which-search-type).
+
 ## Search process
 
 The following table and figure illustrate the search process in Weaviate. Around the core search process, there are several steps that can be taken to improve and manipulate the search results.
@@ -19,8 +32,13 @@ The following table and figure illustrate the search process in Weaviate. Around
 | Step | Description | Optional |
 |------|-------------|----------|
 | 1. [Retrieval](#retrieval-filter) | <strong>[Filter](#retrieval-filter):</strong> Narrow result sets based on criteria<br/><strong>[Search](#retrieval-search):</strong> Find the most relevant entries, using one of [keyword](#keyword-search), [vector](#vector-search) or [hybrid](#hybrid-search) search types<br/> | Required |
-| 2. [Rerank](#rerank) | Reorder results using a different (e.g. more complex) model | Optional |
-| 3. [Retrieval augmented generation](#retrieval-augmented-generation-rag) | Send retrieved data and a prompt to a generative AI model. Also called retrieval augmented generation, or RAG. | Optional |
+| 2. [Cut](../../api/graphql/additional-operators.md#autocut) | Drop the tail of weak matches, or group the results | Optional |
+| 3. [Soft rank](../../search/boost.md) | Rescore the objects with simple signals, such as recency or a property value | Optional |
+| 4. [Diversify](../../search/similarity.md#diversity-selection-mmr) | Re-pick the page so that the results are not near-duplicates | Optional |
+| 5. [Rerank](#rerank) | Reorder results using a different (e.g. more complex) model | Optional |
+| 6. [Retrieval augmented generation](#retrieval-augmented-generation-rag) | Send retrieved data and a prompt to a generative AI model. Also called retrieval augmented generation, or RAG. | Optional |
+
+Weaviate runs the stages after retrieval in a fixed order: `autocut`, then `groupBy`, then boost, then MMR, then the reranker, then the generative module. Each stage sees only what the previous stage returned, so a reranker cannot promote an object that `autocut` already removed.
 
 <center>
 
@@ -314,7 +332,7 @@ In such cases of unordered retrieval requests, Weaviate will retrieve objects in
 <i class="fa-solid fa-sort"></i> A reranker reorders initial retrieval results with a more complex model or different criteria.
 :::
 
-Reranking improves search relevance by reordering initial results.
+Reranking improves search relevance by reordering initial results. See [Reranking](../reranking.md) for when to use it, and how many candidates to give it.
 
 If a collection is [configured with a reranker integration](../../model-providers/index.md), Weaviate will use the configured reranker model to reorder the initial search results.
 
