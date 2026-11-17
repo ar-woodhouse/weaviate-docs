@@ -238,6 +238,8 @@ By configuring a dynamic index, you can automatically switch from flat to HNSW i
 
 Currently, this is only a one-way upgrade from a flat to an HNSW index, it does not support changing back to a flat index even if the object count goes below the threshold due to deletion.
 
+Dynamic indexes do not support multi-vector embeddings. For supported index types and encoding requirements, see [Multi-vector embeddings](../../manage-collections/vector-config.mdx#define-multi-vector-embeddings-eg-colbert-colpali).
+
 This is particularly useful in a multi-tenant setup where building an HNSW index per tenant would introduce extra overhead. With a dynamic index, as individual tenants grow their index will switch from flat to HNSW, while smaller tenants' indexes remain flat.
 
 ## HFresh index
@@ -256,11 +258,11 @@ HFresh works by:
 
 This approach can provide memory efficiency benefits for large datasets while maintaining good search performance. The key trade-off is between memory usage and search recall, controlled by parameters like `searchProbe` (number of posting lists to search) and `replicas` (number of posting lists each vector is added to).
 
-Only the centroid index stays in memory, compressed with 8-bit [rotational quantization (RQ)](../vector-quantization.md#rotational-quantization). The posting lists are stored on disk, compressed with 1-bit RQ. A query searches the in-memory centroid index to pick a few relevant postings, reads only those postings from disk, and rescores the top candidates against the uncompressed vectors. Because only a small subset of the data is read per query, disk I/O stays bounded and latency stays predictable as the dataset grows. HFresh also rebalances its posting lists in the background as data changes, so it does not require periodic full index rebuilds.
+Only the centroid index stays in memory, compressed with 8-bit [rotational quantization (RQ)](../vector-quantization.md#rotational-quantization). The posting lists are stored on disk, compressed with 1-bit RQ. A query searches the in-memory centroid index to pick a few relevant postings, reads only those postings from disk, and rescores the top candidates against the uncompressed vectors. The amount of work depends on the posting lists selected by `searchProbe` and the candidates rescored with `rq.rescoreLimit`. Query latency also depends on storage, cache behavior and concurrent load; this layout does not guarantee constant latency as the dataset grows. HFresh also rebalances its posting lists in the background as data changes, so it does not require periodic full index rebuilds.
 
 HFresh is particularly well-suited for:
 
-- **Memory-constrained deployments**: Reduces memory usage while maintaining good search performance, from small collections up to very large ones
+- **Memory-constrained deployments**: Keeps posting lists on disk rather than maintaining a full HNSW graph over the data vectors in memory
 - **High-dimensional vectors**: Particularly effective with high-dimensional embedding models
 - **Cost-sensitive deployments**: Lower memory requirements can reduce infrastructure costs
 
@@ -339,7 +341,7 @@ Here's a quick guide to choosing the right index:
 
 - **Dynamic index**: Best for collections that start small but may grow significantly over time. Automatically transitions from flat to HNSW as data scales.
 
-- **HFresh index**: Best when memory efficiency is the priority, especially with high-dimensional vectors. Suitable from small collections up to very large ones.
+- **HFresh index**: Consider when keeping posting lists on disk fits your memory budget. Check supported distances and encodings, then compare recall and latency with HNSW on your workload.
 
 #### Comparison between index types
 
@@ -351,7 +353,7 @@ Here's a quick guide to choosing the right index:
 | Search speed (large datasets) | Slow                             | Very fast                   | Fast                                                |
 | Disk usage                    | Low                              | Moderate                    | Moderate to high                                    |
 | Maintenance                   | None                             | Costlier as the graph grows | Self-balancing in the background, no full rebuilds  |
-| Best for                      | Small collections, multi-tenancy | Large collections, high QPS | Memory-constrained deployments, any size (disk-backed) |
+| Best for                      | Small collections, multi-tenancy | Large collections, high QPS | Memory-constrained deployments; validate recall and disk latency |
 
 Note that the vector index type parameter only specifies how the vectors of data objects are _indexed_. The index is used for data retrieval and similarity search.
 

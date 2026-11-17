@@ -14,14 +14,14 @@ Vector indexes can use *hot* or *warm* resources, depending on the index type. I
 
 :::tip Indexing recommendations
 
-- For multi-tenant configurations, use a [dynamic index](#dynamic-indexes).
+- For collections or tenants that start small and may outgrow a flat index, consider a [dynamic index](#dynamic-indexes). Check its [async-indexing requirement, one-way conversion and multi-vector limitation](../../concepts/indexing/vector-index.md#dynamic-index).
 - Consider the size of your data set when choosing an index type:
     - If your object count is low, consider a flat index.
     - For larger data sets, use an HNSW index.
-    - If you are unsure, use a dynamic index.
+    - Compare recall, latency and memory use on representative data before committing to an index type.
 - If you can trade off some accuracy, consider using [compression](./compression.mdx):
-    - For HNSW indexes, [PQ](../../configuration/compression/pq-compression.md)/[SQ](../../configuration/compression/sq-compression.md)/[BQ](../../configuration/compression/bq-compression.md) can reduce memory requirements.
-    - For flat indexes, [binary quantization (BQ)](../../configuration/compression/bq-compression.md) can improve search speeds.
+    - For HNSW indexes, [RQ](../../configuration/compression/rq-compression.md), [PQ](../../configuration/compression/pq-compression.md), [SQ](../../configuration/compression/sq-compression.md) or [BQ](../../configuration/compression/bq-compression.md) can reduce vector memory requirements.
+    - Flat indexes support [RQ](../../configuration/compression/rq-compression.md) and [BQ](../../configuration/compression/bq-compression.md). Compare recall and latency with and without compression on your data.
 - Consider your query needs when configuring inverted indexes:
     - If disk space is not a concern, [index all properties](#property-level-configuration) for searching & filtering.
     - If metadata filtering is important, index it [at the collection level](#collection-level-configuration).

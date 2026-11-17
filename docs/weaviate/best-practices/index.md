@@ -81,12 +81,10 @@ Then consider enabling multi-tenancy, and assigning each subset of data to a sep
 
 For many cases, the default, `hnsw` index type is a good starting point. However, in some cases, using `flat` indexes, or `dynamic` indexes may be more appropriate.
 
-- `flat` indexes are useful when you know that each collection will only ever contain a small number of vectors (e.g. fewer than 100,000).
-    - They use very little memory, but can be slow for large datasets.
+- Consider `flat` indexes for collections or tenants expected to stay small.
+    - Evaluate latency with your vector dimensions, filters and object count rather than treating a fixed object count as a performance cutoff.
 - `dynamic` indexes start with a `flat` index, and automatically switch to an `hnsw` index when the number of vectors in the collection exceeds a certain threshold.
-    - They are a good compromise between memory usage and query performance.
-
-Typically, multi-tenant setups can benefit from using `dynamic` indexes, as they can automatically switch to `hnsw` indexes when the number of vectors in a tenant exceeds a certain threshold.
+    - Consider them when collections or tenants may outgrow a flat index. Check the [requirements and limitations](../concepts/indexing/vector-index.md#dynamic-index), including async indexing, one-way conversion and the lack of multi-vector support.
 
 :::tip Further resources
 - [How-to: Set the vector index type](../manage-collections/vector-config.mdx#set-vector-index-type)
@@ -99,12 +97,12 @@ As the size of your dataset grows, the accompanying vector indexes can lead to h
 
 If you have a large number of vectors, consider using vector quantization to reduce the memory footprint of the vector index. This will reduce the required memory, and allow you to scale more effectively at lower costs.
 
-If memory is your priority, you can also consider the disk-based [HFresh index](/weaviate/concepts/vector-index#hfresh-index), an index-level alternative to quantization for reducing the memory footprint.
+For a memory-constrained workload, compare a compressed HNSW index with the disk-based [HFresh index](/weaviate/concepts/vector-index#hfresh-index). HFresh reads posting lists and full-precision rescoring vectors from disk. Check its distance-metric and encoding requirements, and measure recall and latency with your storage and query workload.
 
 ![Overview of quantization schemes](../../../_includes/images/concepts/quantization_overview_light.png#gh-light-mode-only "Overview of quantization schemes")
 ![Overview of quantization schemes](../../../_includes/images/concepts/quantization_overview_dark.png#gh-dark-mode-only "Overview of quantization schemes")
 
-For HNSW indexes, we suggest enabling [rotational quantization (RQ)](../configuration/compression/rq-compression.md) as a starting point. It provides significant memory usage benefits and almost no loss in query accuracy. 
+For HNSW indexes, we suggest enabling [rotational quantization (RQ)](../configuration/compression/rq-compression.md) as a starting point. The memory reduction and recall depend on the RQ bit width and your data. Measure recall and latency before choosing compression settings.
 
 import CompressionByDefault from '/_includes/compression-by-default.mdx';
 
