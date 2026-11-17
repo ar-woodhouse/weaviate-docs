@@ -24,6 +24,12 @@ With our reranker modules, you can conveniently perform [multi-stage searches](h
 
 In other words, you can perform a search - for example, a vector search - and then use a reranker to re-rank the results of that search. Our reranker modules are compatible with all of vector, bm25, and hybrid searches.
 
+### Choose the candidate set
+
+A reranker can change the order of the retrieved objects, but it cannot recover an object that retrieval missed or a filter excluded. If relevant objects are missing, adjust the retrieval query, filters or `limit` before changing the reranker.
+
+Without other result-selection options, your application can retrieve more than 10 candidates, rerank them, and keep the first 10. Options such as `autocut` and [MMR](../search/similarity.md#diversity-selection-mmr) can reduce the set before reranking, so increasing `limit` alone does not guarantee more candidates. More candidates can increase reranking work and provider costs. Compare relevance, latency and cost on your workload.
+
 ### An example GraphQL query with a reranker
 
 You can use reranking in a GraphQL query as follows:
@@ -53,9 +59,9 @@ You can use reranking in a GraphQL query as follows:
 }
 ```
 
-This query retrieves 10 results from the `JeopardyQuestion` class, using a hybrid search with the query “flying”. It then re-ranks the results using the `answer` property, and the query “floating”.
+This query retrieves up to 10 results from the `JeopardyQuestion` class, using a vector search (`nearText`) with the query "flying". It then re-ranks the results using the `answer` property and the query "floating".
 
-You can specify which `property` of the `JeopardyQuestion` class you want to pass to the reranker. Note that here, the returned `score` will include the score from the reranker.
+The required `property` parameter selects the text to pass to the reranker. In GraphQL, request `rerank { score }` under `_additional` for the reranker's score. Reranking itself leaves `_additional.score` and `_additional.distance` unchanged.
 
 ## Further resources
 
