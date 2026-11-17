@@ -50,7 +50,7 @@ The `ACORN` algorithm is designed to speed up filtered searches with the [HNSW i
 
 The `ACORN` algorithm is especially useful when the filter has low correlation with the query vector. In other words, when a filter excludes many objects in the region of the graph most similar to the query vector.
 
-Our internal testing indicates that for lowly correlated, restrictive filters, the `ACORN` algorithm can be significantly faster, especially for large datasets. If this has been a bottleneck for your use case, we recommend enabling the `ACORN` algorithm.
+Our internal testing indicates that for lowly correlated, restrictive filters, the `ACORN` algorithm can be significantly faster, especially for large datasets. `ACORN` is the default `filterStrategy` since `v1.34`. Weaviate uses it only while the allow list holds at most 40% of the index (`HNSW_ACORN_FILTER_RATIO`, default `0.4`); above that ratio the search falls back to `sweeping`. To make `sweeping` the default for new collections, set `HNSW_DEFAULT_FILTER_STRATEGY=sweeping`.
 
 ### Sweeping
 

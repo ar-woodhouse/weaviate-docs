@@ -233,7 +233,7 @@ import GraphQLFiltersWhereLike from '/_includes/code/graphql.filters.where.like.
 
 #### Performance of `Like`
 
-Each `Like` filter iterates over the entire inverted index for that property. The search time will go up linearly with the dataset size, and may become slow for large datasets.
+A `Like` filter with a fixed prefix, such as `"car*"`, seeks to that prefix in the inverted index and stops once it moves past it. A pattern that starts with a wildcard, such as `"*car"`, has no prefix to seek to, so it iterates over the entire inverted index for that property. Search time grows linearly with the dataset size, and may become slow for large datasets.
 
 #### Wildcard literal matches with `Like`
 
