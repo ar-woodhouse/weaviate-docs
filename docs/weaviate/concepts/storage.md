@@ -21,11 +21,12 @@ Each class in Weaviate's user-defined schema leads to the creation of an index i
 
 ### Components of a Shard
 
-Each shard houses three main components:
+Each shard contains:
 
-* An object store, essentially a key-value store
-* An [inverted index](https://en.wikipedia.org/wiki/Inverted_index)
-* A vector index store (plugable, currently a [custom implementation of HNSW](/weaviate/config-refs/indexing/vector-index.mdx#hnsw-index))
+* An object store, an LSM key-value store for the objects and their properties
+* An [inverted index](https://en.wikipedia.org/wiki/Inverted_index) for each indexed property and index type
+* One vector index store per named vector. Each is an [`hnsw`](/weaviate/config-refs/indexing/vector-index.mdx#hnsw-index), [`flat`](/weaviate/config-refs/indexing/vector-index.mdx#flat-index), [`dynamic`](/weaviate/config-refs/indexing/vector-index.mdx#dynamic-index) or [`hfresh`](/weaviate/config-refs/indexing/vector-index.mdx#hfresh-index) index, and each can have its own quantizer
+* A compressed-vector store, when a quantizer is enabled. It holds the compressed codes next to the full-precision vectors that rescoring reads
 
 #### Object and Inverted Index Store
 
@@ -35,15 +36,17 @@ Weaviate periodically merges smaller, older segments to make larger segments. Si
 
 Considerations
 
-Object storage and inverted index storage implement the LSM algorithm, they use segmentation. The vector index uses a different storage algorithm. The vector index does not use segmentation.
+The object store and the inverted indexes use the LSM algorithm, so they are segmented. An HNSW index uses its own storage and does not segment. The flat and HFresh indexes are LSM-backed, so they do segment.
 
 Weaviate versions before `v1.5.0` use a B+Tree storage mechanism. The LSM method is faster, it works in constant time, and it improves write performance.
 
 To learn more about Weaviate's LSM store, see the LSM library documentation in the [Go package repository](https://pkg.go.dev/github.com/weaviate/weaviate/adapters/repos/db/lsmkv)
 
-#### HNSW Vector Index Storage
+#### Vector Index Storage
 
 Each shard contains a vector index that corresponds to the object and inverted index stores. The vector store and the other stores are independent. The vector store does not have to manage segmentation.
+
+The commit log and snapshot layout in this section is specific to `hnsw`. The flat and HFresh indexes are recovered from the LSM write-ahead log instead.
 
 By grouping a vector index with the object storage within a shard, Weaviate can make sure that each shard is a fully self-contained unit which can independently serve requests for the data it owns. By placing the vector index next to the object store (instead of within), Weaviate can avoid the downsides of a segmented vector index.
 

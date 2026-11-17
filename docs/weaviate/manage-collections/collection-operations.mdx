@@ -661,7 +661,7 @@ To create an index that includes all of the objects in a collection, do one of t
 - New collections: Add all of the collection's properties before importing objects.
 - Existing collections: Export the existing data from the collection. Re-create it with the new property. Import the data into the updated collection.
 
-We are working on a re-indexing API to allow you to re-index the data after adding a property. This will be available in a future release.
+The reindex API can rebuild a property's inverted index without exporting the data. It is available from `v1.40`, and the server serves it only when [`RUNTIME_REINDEX_ENABLED=true`](/deploy/configuration/env-vars/index.md) is set. Use `PUT /v1/schema/{className}/properties/{propertyName}/index/{indexName}` to create or migrate an index, `GET /v1/schema/{className}/indexes` to check progress, and `POST /v1/schema/{className}/properties/{propertyName}/index/{indexName}/cancel` to stop a running task. See the [REST API reference](/weaviate/api/rest).
 
 </details>
 
