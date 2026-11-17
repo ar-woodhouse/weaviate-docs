@@ -130,22 +130,14 @@ Set `DISK_USE_WARNING_PERCENTAGE` and `DISK_USE_READONLY_PERCENTAGE` to adjust t
 
 ### Plan memory allocation
 
-When running Weaviate, its memory footprint is a common bottleneck. As a rule of thumb, you can expect to need:
+Start with the vector payload, not a fixed memory requirement per million objects. For uncompressed `float32` vectors:
 
-- 6GB of memory for 1 million, 1024-dimensional vectors
-- 1.5GB of memory for 1 million, 256-dimensional vectors
-- 2GB of memory 1 million, 1024-dimensional vectors with quantization enabled
+- 1 million 1024-dimensional vectors contain 4.096 GB of vector payload.
+- 1 million 256-dimensional vectors contain 1.024 GB of vector payload.
 
-<details>
-  <summary>How did we come up with this figure?</summary>
+These figures use decimal GB and exclude graph structures, cache bookkeeping, storage buffers and the Go runtime. Count each named vector. For HNSW multi-vector embeddings, size the vector cache for component vectors without MUVERA, or encoded vectors with MUVERA. For a node's memory limit, include the shard replicas hosted on that node, not the whole cluster. Quantization changes the vector representation; its compression ratio is not a ratio for total Weaviate RAM.
 
-Without quantization, each vector is stored as an n-dimensional float. For 1024-dimensional vectors, this means:
-
-- 4 bytes per float * 1024 dimensions * 1M vectors = 4GB
-
-We add some overhead for the index structure, and additional overheads, which brings us to the approximate figure of 6GB.
-
-</details>
+Use the [resource planning calculation](../concepts/resources.md#an-example-calculation) and measure representative imports and queries before setting a production memory limit.
 
 :::tip Further resources
 - [Concepts: Resource planning](../concepts/resources.md)

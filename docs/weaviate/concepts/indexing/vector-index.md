@@ -116,16 +116,11 @@ HNSW is an in-memory index, where each node in the graph as well as each edge be
 
 This means that the size of the index in memory is directly proportional to the number of vectors in the index, as well as the number of connections between vectors.
 
-The size of an HNSW index is dominated by the number of vectors; take a look at the table below for an example:
+For uncompressed `float32` vectors, the vector payload is `4 * dimensions` bytes per vector. The graph, cache bookkeeping and runtime allocations add memory beyond that payload. Graph overhead becomes a larger share for low-dimensional or quantized vectors. See [Resource planning](../resources.md#an-example-calculation) for the scope of sizing estimates.
 
-| Component | Size derivation | Typical size | Size @1M vectors | Size @100M vectors |
-| --- | --- | --- | --- | --- |
-| Node | 4B (float) x N dimensions | 2-12kB | 2-12GB | 200-1200GB |
-| Edge | 10B x 20 connections | 200B | 200MB | 20GB |
+[Quantization](../vector-quantization.md) reduces the vector representation, not the graph. The disk-based [HFresh index](#hfresh-index) uses a different layout, with an in-memory centroid index and disk-backed posting lists.
 
-As you can see, the memory requirements of an HNSW index can quickly become a bottleneck. This is where [quantization](../vector-quantization.md) can be used to reduce the size of the index in memory. Alternatively, the disk-based [HFresh index](#hfresh-index) keeps only a compressed centroid index in memory, which can dramatically reduce the memory footprint.
-
-HNSW is very fast, memory efficient, approach to similarity search. The memory cache only stores the highest layer instead of storing all of the data objects in the lowest layer. When the search moves from a higher layer to a lower one, HNSW only adds the data objects that are closest to the search query. This means HNSW uses a relatively small amount of memory compared to other search algorithms.
+The HNSW graph keeps nodes and connections from every layer in memory, including layer zero. Vector data is cached separately; the cache is not restricted to the highest layer. Reducing the vector cache does not remove graph nodes or connections. See [Vector cache considerations](#vector-cache-considerations).
 
 Have another look at the diagram; it demonstrates how the HNSW algorithm searches. The search vector in the top layer connects to a partial result in layer one. The objects in layer one lead HNSW to the result set in layer zero. This allows HNSW to skip objects that are unrelated to the search query.
 
@@ -286,7 +281,7 @@ For the configuration parameters, see [Multi-vector embeddings on HFresh](../../
 
 ## Vector cache considerations
 
-For optimal search and import performance, previously imported vectors need to be in memory. A disk lookup for a vector is orders of magnitudes slower than memory lookup, so the disk cache should be used sparingly. However, Weaviate can limit the number of vectors in memory. By default, this limit is set to one trillion (`1e12`) objects when a new collection is created.
+For an uncompressed single-vector HNSW index, `vectorCacheMaxObjects` configures the vector cache per shard and per named vector. Its default is one trillion (`1e12`). Cache misses can require disk reads. This setting does not limit the graph or total process memory; see [HNSW vector cache](../resources.md#vector-cache).
 
 During import set `vectorCacheMaxObjects` high enough that all vectors can be held in memory. Each import requires multiple searches. Import performance drops drastically when there isn't enough memory to hold all of the vectors in the cache.
 
