@@ -25,12 +25,14 @@ Data objects are replicated using a [leaderless design](./cluster-architecture.m
 These designs reflect the trade-off between consistency and availability that is described in the [CAP Theorem](./index.md#cap-theorem).
 
 :::tip Rule of thumb on consistency
-The strength of consistency can be determined by applying the following conditions:
-* If r + w > n, then the system is strongly consistent.
+For reading one object by its ID, the following conditions estimate the strength of consistency:
+* If r + w > n, a read that reaches r replicas and a write that was acknowledged by w replicas have at least one replica in common.
     * r is the consistency level of read operations
     * w is the consistency level of write operations
     * n is the replication factor (number of replicas)
 * If r + w &lt;= n, then eventual consistency is the best that can be reached in this scenario.
+
+The common replica is the argument for reading a write back, and it depends on three assumptions: every acknowledged write reached its `w` replicas, every read reaches its `r` replicas, and the coordinator returns the newest version among the replies. The equation does not order concurrent or retried writes. It also does not describe which objects a vector, keyword or hybrid query returns, because that candidate list is built from the local index of the coordinator and of any other shards required to answer the query, whatever the read consistency level ([details below](#tunable-consistency-and-queries)). Asynchronous indexing adds a separate delay between the acknowledgement and the vector being searchable.
 :::
 
 ## Cluster metadata

@@ -212,14 +212,17 @@ For **server-side batching**:
 
 ### Large dataset strategies
 
-When importing millions of objects:
+When importing millions of objects, split the data into chunks and keep a checkpoint, so a failed run resumes instead of starting again. Three things make a resume safe:
 
-1. **Split your dataset** into manageable chunks
-2. **Use checkpointing** to resume failed imports
-3. **Monitor progress** with regular status updates
-4. **Implement retry logic** for transient failures
+1. **Give every row a stable ID from your source data.** A batch write with an existing ID overwrites that object, so sending the same row twice does not duplicate it. Use an immutable key from the source, such as a database primary key. Do not derive the ID from a property you may edit: edited text produces a new ID, and two rows with the same text produce the same ID.
+2. **Record which objects the server acknowledged, not how many rows you sent.** After each chunk, read the per-object results. If the acknowledged and failed objects do not add up to the number sent, the outcome of the rest is unknown. A failure list alone does not confirm the rest. The Python client keeps at most the last 100,000 per-object results in a batch, so keep a chunk below that.
+3. **Keep the checkpoint tied to one source snapshot and one target collection.** The dataset label in the example is a name you choose, not a checksum. The ordered rows and their IDs must stay the same, and a row that was acknowledged must not change, because a resumed run does not write it again. You can correct a row that failed or whose outcome is unknown: it keeps its ID, so the next run writes the corrected payload. For a genuinely new import, use a new collection, a new dataset label and a new or deleted checkpoint file. The checkpoint compares only the dataset label and the collection name. It cannot tell another cluster, another tenant, or a recreated collection with the same name, so use a separate checkpoint file and label for each destination, and delete the checkpoint when you recreate the collection.
 
-Example of chunked import with progress tracking:
+The function stops at the first chunk that is not fully acknowledged, saves the IDs it confirmed, and returns a result whose `state` is `complete` or `stopped`. The next call resumes that chunk and skips the confirmed IDs, also when the chunk size differs. A crash in the middle of a chunk re-sends that chunk, which overwrites the same objects with the same values. Call the function with an existing collection and the ordered rows.
+
+Replaying a chunk is safe only while the source rows and the stored objects are unchanged: with the same IDs, the replay overwrites the objects, including any newer write that arrived since the first attempt.
+
+Example of a resumable chunked import:
 
 <Tabs className="code" groupId="languages">
   <TabItem value="py" label="Python">
@@ -231,6 +234,8 @@ Example of chunked import with progress tracking:
     />
   </TabItem>
 </Tabs>
+
+A full retry loop retries only the failed and unresolved payloads, keyed by ID, and reconciles the counts again. That is more code than most bulk loads need. When the source is immutable and a restart is acceptable, stopping at the first bad chunk and running the import again has fewer failure modes.
 
 ## Summary
 

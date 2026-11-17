@@ -208,6 +208,8 @@ Configure the Go client's gRPC connection parameters as described on the [connec
 
 Batch imports report failures per object: a problem with one object does not abort the rest of the import. Errors are reported the same way in server-side and manual batching. Inspect the failed items during and after the import to catch data issues early.
 
+An object can appear in neither the failure list nor the successes, and its outcome is then unknown. [Reconcile the counts](../tutorials/import.mdx#large-dataset-strategies) when you need a resumable import.
+
 <Tabs className="code" groupId="languages">
   <TabItem value="py" label="Python">
 
@@ -450,7 +452,30 @@ Data imports can be resource intensive. Consider the following when you import l
 
 ### Asynchronous imports
 
-To maximize import speed, enable [asynchronous indexing](/weaviate/config-refs/indexing/vector-index.mdx#asynchronous-indexing) by setting the `ASYNC_INDEXING` environment variable to `true` in your Weaviate configuration. This decouples vector index construction from object creation, so imports are not slowed down by index building.
+[Asynchronous indexing](../concepts/indexing/vector-index.md#asynchronous-indexing) moves vector index construction off the write path, so an import does not wait for index building. To enable it, set the `ASYNC_INDEXING` environment variable to `true` and restart Weaviate. The setting is instance-wide: it applies to every collection, and to single-object writes and updates as well as batch imports. You cannot enable it for a bulk loader alone.
+
+The trade-off is searchable-now. With asynchronous indexing on, the server can acknowledge a write before an indexing worker has added its vector, so a vector search can miss the object even though the import reported no failures. Reads that use the stored object and inverted index can still find it: get-by-ID, filtered object lists, keyword search and `over_all` totals, because those stores are written before the acknowledgement. That does not make every later query return it: a result set still depends on its filters, limits and ranking, and a replicated collection can answer from a replica that has not received the write. A vector aggregate counts only the objects that its vector search found, so it is not an object count.
+
+Use asynchronous indexing when write throughput is the bottleneck and nothing queries the new data yet:
+
+- A bulk load, backfill, or re-import into a collection that is not serving its new data, followed by a switch of the read path.
+- A batch evaluation that indexes a dataset first and queries it afterwards.
+
+Keep it off when a write must be searchable soon after it is acknowledged:
+
+- One request writes an object and then searches for it.
+- A user-facing "add and see it" flow.
+
+If the setting is on and a later search must include the new writes, wait for the vector queue to drain before you query:
+
+- `GET /v1/nodes?output=verbose` reports `vectorIndexingStatus` and `vectorQueueLength` for every shard on every node ([cluster node data](/deploy/configuration/status.md#cluster-node-data)).
+- In Python, `collection.batch.wait_for_vector_indexing()` polls the shard status of the collection. It follows the shards of a batch import that ran in that collection's `batch` context manager (`stream()`, `dynamic()`, `fixed_size()` or `rate_limit()`), and returns when they report `READY`. After `data.ingest()` or `insert_many()` it can return before the vectors are indexed, because those paths do not record the imported shards for it.
+
+Neither check is a barrier. Both describe the queue at one moment: writes that arrive afterwards are not covered, and neither check says what a query will rank in its top results. A query can also find a new object while its vector is still queued: a hybrid search can return it through its keyword part, and a filtered vector query can scan the filtered candidates directly instead of the graph. So a hit does not prove that indexing has finished. Readiness is a separate signal: `client.is_ready()` reports whether a node can serve traffic, not whether its vector index has caught up.
+
+On a replicated collection, the read consistency level sets how many replica replies a read waits for and which object versions it can resolve. See [Consistency](../concepts/replication-architecture/consistency.md).
+
+If you use Weaviate Cloud, check your cluster's default for this setting before you rely on either behaviour.
 
 ### Automatically add new tenants
 

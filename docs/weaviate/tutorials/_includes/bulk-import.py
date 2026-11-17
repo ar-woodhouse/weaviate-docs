@@ -228,61 +228,154 @@ print(f"✓ Custom vectors: {result_custom.total_count} objects imported success
 
 
 # START ChunkedImport
-# Import large datasets in chunks with progress tracking
-def import_large_dataset(collection, data_rows, chunk_size=1000):
+import json
+import uuid
+from pathlib import Path
+
+CHECKPOINT_PATH = Path("import_checkpoint.json")
+# Label for this source snapshot and its target collection. Do not change it to
+# re-send a corrected row; change it only for a new import into a new collection.
+DATASET_NAME = "jeopardy-tiny-v1"
+
+
+def object_id(position):
+    """Return the ID for the row at this position in the dataset.
+
+    The ID must be stable across runs, so a replay updates the same object
+    instead of adding a copy, and unique in the dataset, because a batch write
+    with an existing ID overwrites that object. This example derives it from
+    the dataset label and the row position. If the source has its own immutable
+    key, use that instead. Do not derive it from a property that you may edit:
+    edited text gives a new ID, and two equal texts give the same ID.
     """
-    Import data in chunks with progress tracking and checkpointing
-    """
-    total_objects = len(data_rows)
-    imported_count = 0
-    failed_count = 0
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{DATASET_NAME}/{position}"))
 
-    # Process in chunks
-    for chunk_start in range(0, total_objects, chunk_size):
-        chunk_end = min(chunk_start + chunk_size, total_objects)
-        chunk = data_rows[chunk_start:chunk_end]
 
-        print(f"\nImporting chunk {chunk_start}-{chunk_end} of {total_objects}")
-
-        with collection.batch.fixed_size(
-            batch_size=100,
-            concurrent_requests=2,
-        ) as batch:
-            for data_row in chunk:
-                batch.add_object(properties=data_row)
-
-        # Track progress
-        chunk_failed = len(collection.batch.failed_objects)
-        chunk_succeeded = len(chunk) - chunk_failed
-        imported_count += chunk_succeeded
-        failed_count += chunk_failed
-
-        # Progress report
-        progress = (chunk_end / total_objects) * 100
-        print(f"Progress: {progress:.1f}% ({imported_count}/{total_objects} imported)")
-
-        if chunk_failed > 0:
-            print(f"  Warning: {chunk_failed} objects failed in this chunk")
-
-        # Optional: Save checkpoint for resume capability
-        checkpoint = {
-            "last_processed_index": chunk_end,
-            "imported_count": imported_count,
-            "failed_count": failed_count,
+def load_checkpoint(dataset, collection_name):
+    """Return the checkpoint for this dataset and collection, or a fresh one."""
+    if not CHECKPOINT_PATH.exists():
+        return {
+            "dataset": dataset,
+            "collection": collection_name,
+            "next_start": 0,
+            "acknowledged_in_chunk": [],
         }
-        with open("import_checkpoint.json", "w") as f:
-            json.dump(checkpoint, f)
-
-    # Final report
-    print(f"\n=== Import Complete ===")
-    print(f"Total imported: {imported_count}/{total_objects}")
-    print(f"Total failed: {failed_count}")
-    print(f"Success rate: {(imported_count/total_objects)*100:.1f}%")
-
-    return imported_count, failed_count
+    checkpoint = json.loads(CHECKPOINT_PATH.read_text())
+    if checkpoint.get("dataset") != dataset or checkpoint.get("collection") != collection_name:
+        raise ValueError(
+            f"{CHECKPOINT_PATH} belongs to dataset {checkpoint.get('dataset')!r} in collection "
+            f"{checkpoint.get('collection')!r}, not {dataset!r} in {collection_name!r}. "
+            "Delete it or use a different path."
+        )
+    return checkpoint
 
 
-# Test chunked import with small chunks for demo
+def save_checkpoint(dataset, collection_name, next_start, acknowledged_ids):
+    CHECKPOINT_PATH.write_text(
+        json.dumps(
+            {
+                "dataset": dataset,
+                "collection": collection_name,
+                "next_start": next_start,
+                "acknowledged_in_chunk": sorted(acknowledged_ids),
+            }
+        )
+    )
+
+
+def import_large_dataset(collection, data_rows, chunk_size=1000):
+    """Import rows in chunks and stop at the first chunk that is not fully acknowledged.
+
+    The checkpoint records the dataset label, the collection, the row position
+    to resume from and the IDs already acknowledged at or after that position.
+    A later call resumes at that row, does not re-send those IDs, and accepts a
+    different `chunk_size`.
+
+    The label is not a checksum. A safe resume depends on the ordered rows and
+    their IDs staying the same, and on acknowledged payloads and the target
+    collection not changing. You may correct the payload of a row that was not
+    acknowledged: its ID stays the same, so the next call writes the corrected
+    row.
+
+    The checkpoint compares only the dataset label and the collection name. It
+    cannot tell another cluster, another tenant, or a collection that was
+    deleted and recreated under the same name. Use a separate checkpoint file
+    and dataset label for each destination, and delete the checkpoint when you
+    recreate the collection.
+
+    `data_rows` must be an indexable sequence in a stable order, so that a row
+    position identifies the same row on the next call.
+
+    Returns:
+        A dict whose `state` is `"complete"` or `"stopped"`. `acknowledged` is
+        the number of objects acknowledged during this call. On `"stopped"`,
+        `failed` and `unresolved` list the object IDs that failed or whose
+        outcome is unknown; the checkpoint re-sends them on the next call.
+    """
+    if chunk_size < 1:
+        raise ValueError(f"chunk_size must be at least 1, got {chunk_size}.")
+
+    collection_name = collection.name
+    checkpoint = load_checkpoint(DATASET_NAME, collection_name)
+    if checkpoint["next_start"] > len(data_rows):
+        raise ValueError(
+            f"The checkpoint resumes at row {checkpoint['next_start']}, but there are only "
+            f"{len(data_rows)} rows. Use the source snapshot that the checkpoint belongs to."
+        )
+    acknowledged = set(checkpoint["acknowledged_in_chunk"])
+    confirmed = 0
+
+    for chunk_start in range(checkpoint["next_start"], len(data_rows), chunk_size):
+        chunk_end = min(chunk_start + chunk_size, len(data_rows))
+        chunk_ids = {position: object_id(position) for position in range(chunk_start, chunk_end)}
+        pending = [
+            (position, chunk_ids[position])
+            for position in range(chunk_start, chunk_end)
+            if chunk_ids[position] not in acknowledged
+        ]
+        if not pending:  # Every row in this chunk is already acknowledged.
+            acknowledged.difference_update(chunk_ids.values())
+            save_checkpoint(DATASET_NAME, collection_name, chunk_end, acknowledged)
+            continue
+
+        with collection.batch.stream() as batch:
+            for position, uid in pending:
+                batch.add_object(properties=data_rows[position], uuid=uid)
+
+        # The batch context has closed, so this chunk's results are complete.
+        sent = {uid for _, uid in pending}
+        acked = {str(uid) for uid in collection.batch.results.objs.uuids.values()}
+        failed = {str(error.object_.uuid) for error in collection.batch.failed_objects}
+        unresolved = sent - acked - failed
+        acknowledged |= acked
+        confirmed += len(acked)
+
+        print(
+            f"Chunk rows {chunk_start}-{chunk_end - 1}: {len(acked)} acknowledged, "
+            f"{len(failed)} failed, {len(unresolved)} unresolved"
+        )
+
+        if failed or unresolved:
+            # Keep every acknowledged ID from the resume row onwards: a later
+            # chunk may already have confirmed rows past this one.
+            save_checkpoint(DATASET_NAME, collection_name, chunk_start, acknowledged)
+            return {
+                "state": "stopped",
+                "acknowledged": confirmed,
+                "failed": sorted(failed),
+                "unresolved": sorted(unresolved),
+            }
+
+        acknowledged.difference_update(chunk_ids.values())
+        save_checkpoint(DATASET_NAME, collection_name, chunk_end, acknowledged)
+
+    print(f"Import complete: {len(data_rows)} rows are covered by acknowledged writes.")
+    return {"state": "complete", "acknowledged": confirmed, "failed": [], "unresolved": []}
+# END ChunkedImport
+
+# Demo: create a fresh collection, then run the import twice. This setup and
+# reset belong to the script, not to the resumable recipe above.
+CHECKPOINT_PATH.unlink(missing_ok=True)
 client.collections.delete("JeopardyQuestion")
 collection = client.collections.create(
     name="JeopardyQuestion",
@@ -294,17 +387,18 @@ collection = client.collections.create(
     ],
 )
 
-# Run chunked import with small chunks to demonstrate the feature
-imported, failed = import_large_dataset(collection, data_rows, chunk_size=3)
+first = import_large_dataset(collection, data_rows, chunk_size=3)
+assert first["state"] == "complete", first
+# A second call resumes from the checkpoint and covers the rows it has not
+# acknowledged yet, also with a different chunk size.
+second = import_large_dataset(collection, data_rows, chunk_size=4)
+assert second["state"] == "complete", second
 
-# Verify chunked import
 result_chunked = collection.aggregate.over_all(total_count=True)
-assert failed == 0, f"Chunked import had {failed} failures"
 assert (
     result_chunked.total_count == expected_count
 ), f"Expected {expected_count} objects, got {result_chunked.total_count}"
 print(f"✓ Chunked import: {result_chunked.total_count} objects imported successfully")
-# END ChunkedImport
 
 # Clean up
 client.collections.delete("JeopardyQuestion")
