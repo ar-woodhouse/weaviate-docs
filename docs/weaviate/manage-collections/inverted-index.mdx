@@ -167,6 +167,50 @@ The inverted index in Weaviate can be configured through various parameters at t
   </TabItem>
 </Tabs>
 
+## Migrate or rebuild an inverted index
+
+Use the REST index endpoints to build a disabled property index from stored objects, change supported index settings, or rebuild an existing index. These are separate operations from updating a collection definition.
+
+:::caution Opt-in API
+Submitting a migration or rebuild requires `RUNTIME_REINDEX_ENABLED=true` on the server. It is disabled by default; these submissions return `400` while it is disabled. Index status and cancellation remain available. See [Environment variables](/deploy/configuration/env-vars/index.md#general).
+:::
+
+The index names are `searchable`, `filterable` and `rangeFilters`. Supported changes depend on the property's data type and current index state; see the [REST schema API](/weaviate/api/rest).
+
+Before changing tokenization, check [tokenizer and analyzer compatibility](../config-refs/collections.mdx#tokenization). Enable any required language tokenizer first. A property's `textAnalyzer.stopwordPreset` requires `word` tokenization; accent folding is incompatible with `gse`, `gse_ch`, `kagome_ja` and `kagome_kr`. The index API does not enforce all collection-creation compatibility checks. If the existing immutable analyzer settings conflict with the target tokenizer, use a new property or collection instead.
+
+For example, this request changes an existing `text` property's tokenization from `word` to `field`. The example assumes a single-tenant `Article` collection with a searchable `body` property and credentials authorized to update it. Set `WEAVIATE_URL` to the server URL without `/v1`, and `WEAVIATE_API_KEY` to the API key:
+
+```bash
+curl -X PUT "$WEAVIATE_URL/v1/schema/Article/properties/body/index/searchable" \
+  -H "Authorization: Bearer $WEAVIATE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tokenization":"field"}'
+```
+
+This migration rebuilds the property's enabled searchable and filterable indexes with the new tokenization, including stored objects. It does not apply only to future writes.
+
+A `202` response with `status: "STARTED"` means the task was accepted, not that the indexes are ready. Inspect their state after submitting:
+
+```bash
+curl "$WEAVIATE_URL/v1/schema/Article/indexes" \
+  -H "Authorization: Bearer $WEAVIATE_API_KEY"
+```
+
+For this example, poll until the affected indexes are `ready` with `tokenization: "field"`; handle `failed` or `cancelled` states rather than treating them as completion. The response can briefly show pre-migration state and reflects the answering node, not cluster-wide completion.
+
+A `PUT` can return `200` with `status: "NO_OP"` when the requested configuration is already in place, or `202` when it joins a matching task still in progress. To rebuild without changing configuration, use `POST /v1/schema/{className}/properties/{propertyName}/index/{indexName}/rebuild`. A searchable index must use BlockMax WAND before it can be rebuilt; migrate an older WAND index with `PUT` and `{"algorithm":"blockmax"}` first. To cancel a task, use `POST` on the corresponding `/cancel` endpoint.
+
+For a multi-tenant collection, omit the `tenants` parameter on tokenization and other semantic changes: the operation covers all tenants and rejects a named subset, even one listing every tenant, with `400`. A `/rebuild` request can select a `tenants` list. All targeted tenants must be active before a task can start.
+
+### Scope and migration limits
+
+- These endpoints rebuild supported property indexes from values already stored in objects. They do not populate a newly added property.
+- They do not rebuild null-state or property-length metadata indexes. In particular, they do not repair missing metadata for a property added after import.
+- They do not change a property's name, data type or `textAnalyzer` settings, or a vector index's type. See [collection mutability](../config-refs/collections.mdx#mutability) for changes that need a different migration path.
+
+A rebuild reads stored objects and builds index data. Allow for its I/O and temporary disk use; do not treat an accepted task as a zero-cost configuration update.
+
 ## Drop an inverted index
 
 Drop (delete) an inverted index from a property. This is a destructive operation: the index data is removed from disk. To use the index again, it must be regenerated.

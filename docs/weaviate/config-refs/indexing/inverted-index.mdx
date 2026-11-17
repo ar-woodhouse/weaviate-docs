@@ -231,7 +231,7 @@ Part of a **property definition** (not `invertedIndexConfig`). Configures text a
 
 :::note
 
-`asciiFoldIgnore` changes which tokens are written to disk. It cannot be modified after the property is created. Schema updates that change the ignore list are rejected. To change it, create a new property and reindex.
+`asciiFoldIgnore` changes which tokens are written to disk. It cannot be modified after the property is created. Schema updates that change the ignore list are rejected. To change it, create a differently named property with the new analyzer settings and populate it using [partial object updates](../../manage-objects/update.mdx#update-object-properties), or migrate the data to a new collection. Update queries to use the new property name. Rebuilding an index alone does not populate a new property or change its analyzer settings.
 
 :::
 
@@ -310,7 +310,7 @@ To avoid this, you can either:
 - Add the property before importing objects.
 - Delete the collection, re-create it with the new property and then re-import the data.
 
-We are working on a re-indexing API to allow you to re-index the data after adding a property. This will be available in a future release.
+The opt-in [index migration API](../../manage-collections/inverted-index.mdx#migrate-or-rebuild-an-inverted-index) can rebuild supported property indexes from stored values. It does not populate a newly added property or backfill its null-state and property-length metadata indexes, so it does not remove the limitation described here.
 
 ## How tokenization affects inverted indexing
 

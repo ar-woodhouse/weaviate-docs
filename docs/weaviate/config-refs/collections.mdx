@@ -200,12 +200,14 @@ A description of the collection. This is for your reference and can also provide
 | [`name`](#name)                          | String  | The name of the property.                                                                                                    | (Required) | No      |
 | [`dataType`](./datatypes.md)             | Array   | An array containing one or more data types. For cross-references, use the capitalized collection name (e.g., `["Article"]`). | (Required) | No      |
 | `description`                            | String  | A description of the property for your reference.                                                                            | `null`     | Yes     |
-| [`tokenization`](#tokenization)          | String  | For `text` properties, specifies how the text is split into tokens for inverted indexing.                                    | `word`     | No      |
+| [`tokenization`](#tokenization)          | String  | For `text` properties, specifies how the text is split into tokens for inverted indexing.                                    | `word`     | Via index API |
 | [`indexInverted`](#inverted-index)       | Boolean | If `true`, inverted index is enabled for this property.                                                                      | `true`     | No      |
-| [`indexFilterable`](#inverted-index)     | Boolean | If `true`, builds a roaring bitmap index for this property to allow for efficient filtering.                                 | `true`     | No      |
-| [`indexSearchable`](#inverted-index)     | Boolean | If `true`, builds a searchable map index for this property, suitable for BM25 or hybrid search.                              | `true`     | No      |
-| [`indexRangeFilters`](#inverted-index)   | Boolean | If `true`, builds a roaring bitmap index for numerical range-based filtering.                                                | `false`    | No      |
+| [`indexFilterable`](#inverted-index)     | Boolean | If `true`, builds a roaring bitmap index for this property to allow for efficient filtering.                                 | `true`     | Via index API |
+| [`indexSearchable`](#inverted-index)     | Boolean | If `true`, builds a searchable map index for this property, suitable for BM25 or hybrid search.                              | `true`     | Via index API |
+| [`indexRangeFilters`](#inverted-index)   | Boolean | If `true`, builds a roaring bitmap index for numerical range-based filtering.                                                | `false`    | Via index API |
 | `moduleConfig`                           | Object  | Module-specific settings, such as skipping vectorization for this property.                                                  | `{}`       | No      |
+
+"Via index API" means the separate [index migration or drop endpoints](../manage-collections/inverted-index.mdx#migrate-or-rebuild-an-inverted-index), not an ordinary collection-definition update. Property-type, analyzer and server-gate restrictions still apply.
 
 <details>
   <summary>Example property configuration -  JSON object</summary>
@@ -1125,7 +1127,7 @@ Some, but not all, parameters are mutable after you create your collection. To m
 | :----------------------------------- | :------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------ |
 | `class` (the collection name)        | No                                                                 | -                                                                                                                       | Create a new collection and [migrate the data](../manage-collections/migrate.mdx). To serve an existing collection under another name, use a [collection alias](#collection-aliases). |
 | `description`                        | Yes                                                                | [Update the collection definition](../manage-collections/collection-operations.mdx#update-a-collection-definition)       | -                                                                                                           |
-| `properties`                         | New properties only                                                | [Add a property](../manage-collections/collection-operations.mdx#add-a-property)                                        | To change an existing property, create a new collection and [migrate the data](../manage-collections/migrate.mdx). |
+| `properties`                         | New properties; supported inverted index changes on existing properties | [Add a property](../manage-collections/collection-operations.mdx#add-a-property), or use the opt-in [index migration API](../manage-collections/inverted-index.mdx#migrate-or-rebuild-an-inverted-index) | A property's name, data type and `textAnalyzer` settings cannot change in place. Use a new property or [migrate to a new collection](../manage-collections/migrate.mdx). |
 | `invertedIndexConfig`                | Yes                                                                | [Update the collection definition](../manage-collections/collection-operations.mdx#update-a-collection-definition)       | Changing [`tokenizerUserDict`](./indexing/inverted-index.mdx#tokenizeruserdict) is allowed, but existing objects keep the old tokenization until they are re-imported. |
 | `objectTtlConfig`                    | Yes                                                                | [Update the collection definition](../manage-collections/collection-operations.mdx#update-a-collection-definition)       | -                                                                                                           |
 | `vectorConfig` (named vectors)       | New named vectors, and dropping a named vector from `v1.40`        | [Add new named vectors](../manage-collections/vector-config.mdx#add-new-named-vectors), [Drop a named vector](../manage-collections/vector-config.mdx#drop-a-named-vector) | To change an existing named vector, create a new collection and [migrate the data](../manage-collections/migrate.mdx). |
@@ -1154,7 +1156,7 @@ import CollectionMutableParameters from "/_includes/collection-mutable-parameter
 
 </details>
 
-After you create a collection, you can [add new properties](../manage-collections/collection-operations.mdx#add-a-property). You cannot modify existing properties after you create the collection. You can also [add new named vectors](../concepts/data.md#adding-a-named-vector-after-collection-creation).
+After you create a collection, you can [add new properties](../manage-collections/collection-operations.mdx#add-a-property). Supported inverted index changes, including tokenization migrations, use the separate [index endpoints](../manage-collections/inverted-index.mdx#migrate-or-rebuild-an-inverted-index), not a collection-definition update. You can also [add new named vectors](../concepts/data.md#adding-a-named-vector-after-collection-creation).
 
 ## Auto-schema
 

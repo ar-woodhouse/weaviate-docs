@@ -643,7 +643,7 @@ import CautionSchemaDeleteClass from "/_includes/schema-delete-class.mdx";
 
 ## Add a property
 
-You can add new properties to a collection, but you cannot change an existing one. See [Collection definition: Mutability](../config-refs/collections.mdx#mutability) for the full list of what can change after creation.
+You can add new properties to a collection. Supported inverted index changes on existing properties use the separate, opt-in [index migration API](./inverted-index.mdx#migrate-or-rebuild-an-inverted-index), not a collection-definition update. See [Collection definition: Mutability](../config-refs/collections.mdx#mutability) for the full list of what can change after creation.
 
 <details>
 <summary>
@@ -661,7 +661,7 @@ To create an index that includes all of the objects in a collection, do one of t
 - New collections: Add all of the collection's properties before importing objects.
 - Existing collections: Export the existing data from the collection. Re-create it with the new property. Import the data into the updated collection.
 
-We are working on a re-indexing API to allow you to re-index the data after adding a property. This will be available in a future release.
+The opt-in [index migration API](./inverted-index.mdx#migrate-or-rebuild-an-inverted-index) can rebuild supported property indexes from stored values. It does not populate a newly added property or backfill its null-state and property-length metadata indexes, so it does not remove the limitation described here.
 
 </details>
 
