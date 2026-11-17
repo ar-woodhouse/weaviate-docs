@@ -15,11 +15,11 @@ If you see an error that the collection count limit has been reached, it means y
 **Instead of simply raising the limit, consider rethinking your architecture**. If you really need to change the limit, use the [`MAXIMUM_ALLOWED_COLLECTIONS_COUNT`](/deploy/configuration/env-vars/index.md) environment variable.
 :::
 
-This guide offers an overview of the available architectural choices of using **multi-tenancy** or defining a **dedicated collection** for each subset of data.
+This guide compares three common architectural choices for storing several subsets of data: **multi-tenancy**, a **dedicated collection** for each subset, or **one collection with a property that identifies the subset**.
 
 Consider a scenario where a developer is creating a SaaS platform for product recommendations that allows end users (merchants) to recommend products to their shoppers. In this scenario, each merchant will upload and work only with their own data.
 
-One option is for the developer to create a dedicated collection for each merchant's dataset. However, as the number of merchants grows, so does the number of collections, potentially leading to performance bottlenecks and increased operational complexity. This leads us to an important architectural question: Should you use **"Multi-tenancy"** or **"One collection per dataset"**?
+One option is for the developer to create a dedicated collection for each merchant's dataset. However, as the number of merchants grows, so does the number of collections, potentially leading to performance bottlenecks and increased operational complexity. This leads us to an important architectural question: Should you use **"Multi-tenancy"**, **"One collection per dataset"**, or **one shared collection with a property filter**?
 
 ## Choosing the right architecture
 
@@ -37,12 +37,13 @@ import MultiTenanyVsMultipleCollections from '/docs/weaviate/starter-guides/img/
 </div>
 <br />
 
-When designing a vector database collection definition (data schema) in Weaviate, you must decide between **multi-tenancy** (storing data for multiple tenants in a single collection) or creating **separate collections for each dataset** (the "One collection per dataset" strategy). Each approach has its own advantages and trade-offs, especially in terms of performance, scalability, and management.
+When you design a collection for several datasets, a common decision is between **multi-tenancy** (storing data for multiple tenants in a single collection) and creating **separate collections for each dataset** (the "One collection per dataset" strategy). A third option keeps the data in **one collection**, identifies the subset with a **property** such as an organization ID, and filters on that property. Each approach has its own advantages and trade-offs, especially in terms of performance, scalability, and management.
 
 This guide aims to clarify these concepts and highlight the implications of each approach, focusing on the benefits and drawbacks:
 
 - **["One collection per dataset" architecture](#one-collection-per-dataset-architecture)**
 - **[Multi-tenancy architecture](#multi-tenancy-architecture)**
+- **[Comparing the options](#comparing-the-options)**
 
 ### "One collection per dataset" architecture
 
@@ -98,7 +99,7 @@ If you are creating more than `20` collections, take a moment to consider if mul
 
 ### Multi-tenancy architecture
 
-Multi-tenancy refers to the practice of dividing a single collection to multiple datasets (tenants). Each tenant’s data is logically isolated through the use of tenant names. Multi-tenancy is especially useful when you want to store data for multiple customers or when you want to store similarly structured data for multiple projects.
+Multi-tenancy refers to the practice of dividing a single collection into multiple datasets (tenants). Each tenant's data is stored in its own shard, and a request selects it by tenant name. Multi-tenancy is especially useful when you want to store data for multiple customers or when you want to store similarly structured data for multiple projects.
 
 import MultiTenancyExample from '/docs/weaviate/starter-guides/img/weaviate-multi-tenancy-example.png';
 
@@ -112,8 +113,9 @@ import MultiTenancyExample from '/docs/weaviate/starter-guides/img/weaviate-mult
       <code>BookStore</code> in the collection <code>Products</code>.
       <br />
       <br />
-      Queries can also be filtered based on the name to retrieve only the relevant
-      data.
+      Each request names the tenant, so a query on this collection reads only that
+      tenant's data. The tenant name is a request argument, not a property, so you
+      cannot select it with a <code>where</code> filter.
     </p>
   </div>
   <div class="col col--8">
@@ -132,30 +134,65 @@ import MultiTenancyExample from '/docs/weaviate/starter-guides/img/weaviate-mult
 
 #### Advantages
 
-Use multi-tenancy when you need to support a large number of tenants and prioritize resource efficiency and scalability.
+Use multi-tenancy when you need to support a large number of tenants without a collection for each one.
 
 - **Easier collection definition management:** Definition updates apply universally to all tenants. For example, adding a new property to all products is now much easier.
-- **Index scalability**: Indexes can be optimized for a single collection rather than fragmented across multiple collections. Each tenant has a dedicated, high-performance vector index, which results in faster query speeds. Instead of searching a shared index space, each tenant responds as if it were the only user on the cluster.
-- **Data isolation**: Each tenant’s data is completely segregated. This also means that data deletion is much easier and faster.
+- **Index scalability**: Each tenant has a dedicated vector index, so a query searches only that tenant's vectors. Each active tenant also carries its own index overhead, which matters when tenants are small and numerous.
+- **Data isolation**: Each tenant's data is on its own shard. Deleting a tenant deletes its shard and its data.
 
 #### Challenges
 
-- **Access control complexity**: [Fine-grained access control](/deploy/configuration/authorization.md) must be implemented to ensure data isolation between tenants.
-- **Uniform collection definition**: All tenants must share the same collection schema and configuration.
+- **Access control**: Multi-tenancy separates data, but it does not authenticate the caller. A data permission that covers the whole collection allows its granted data actions on any tenant in that collection. Use a [data permission with a tenant name filter](../../configuration/rbac/manage-roles.mdx#data-permissions), or derive the tenant from the authenticated session and check that the caller may use it. A data permission governs data actions only; reading or managing the collection definition and its tenants uses separate collection and tenant permissions. Permissions stop at the tenant, so rules for a member or an object are application logic.
+- **Uniform collection definition**: The schema, vectorizer and model, vector index type and parameters, quantization, replication factor, TTL and inverted index settings are collection settings, so all tenants share them. [Multi-tenancy is set at creation](../../config-refs/collections.mdx#multi-tenancy) and cannot be enabled or disabled later.
+
+:::note Shared definition, individual data
+All tenants share the collection definition, but their data need not look the same. Objects can omit optional properties, a named vector added later is populated only after its values are written, a `dynamic` vector index moves from `flat` to `hnsw` at its own object count in each tenant, and each tenant has its own activity state.
+:::
+
+Replication is a collection setting, so the configured factor sets the copy count for every tenant shard at creation. The cluster assigns those replicas to nodes when it creates the tenant, before it stores objects, and object data grows with the tenant's objects. An `INACTIVE` tenant stays on local disk and is not queryable. An `OFFLOADED` tenant is stored in cloud storage. A [replica plan](/deploy/configuration/replica-movement.mdx) can contain actions for several shards: a `COPY` adds a replica to one shard, so that shard's actual copy count can differ from the collection factor, and a `MOVE` changes a replica's placement. Neither changes the collection-wide factor.
 
 :::tip Reduce storage costs
-You can change the [state of a tenant](../managing-resources/tenant-states.mdx) into `inactive` (stored locally on disk) or `offloaded` (stored on cloud storage) in order to save resources.
+You can change the [state of a tenant](../managing-resources/tenant-states.mdx) into `inactive` (stored locally on disk) or `offloaded` (stored on cloud storage) in order to save resources. Offloading requires an [offload module](../../configuration/modules.md) to be enabled.
 
 <br />
 
 Find out more about managing multi-tenancy in [How to: Multi-tenancy operations](../../manage-collections/multi-tenancy.mdx).
 :::
 
+### Comparing the options
+
+The three options differ in what they share, what one search covers, and what Weaviate can enforce.
+
+| Aspect | Multi-tenancy | One collection per dataset | One collection, property filter |
+| --- | --- | --- | --- |
+| Collection definition and settings | Shared by every tenant | One per dataset | Shared |
+| What one collection search covers | One tenant | One collection | The whole collection, narrowed by the filter |
+| Remove or suspend one subset | Delete the tenant, or set it `INACTIVE`, or `OFFLOADED` (with an offload module) | Delete the collection | Filtered delete; no per-subset suspend |
+| Access control Weaviate can enforce | Per tenant, with a data permission that names it | Per collection, with a data permission that names it | Per collection only; the filter is application code |
+
+Multi-tenancy is a good starting point when the subsets can share one definition and no feature needs one ranked result from two subsets. Each `Get`, `Aggregate`, REST object read or gRPC search names one tenant, so a search across tenants means separate tenant-scoped searches. One GraphQL request can contain several of them, or the application can send several requests. Either way, the application merges the results. Raw `hybrid` or `bm25` scores from separate searches are not automatically comparable, so apply score normalization or reranking to the merged results in the application. An object in a tenant can reference an object in a non-multi-tenancy collection, but a collection search does not rank results from two tenants. `Explore` searches across collections, but it has no tenant argument, so it cannot select tenant data.
+
+Tenancy also gives each subset its own lifecycle and an access boundary: deleting a tenant deletes its shard, and a data permission with a tenant name filter limits its data actions to the tenants that match the filter. Many small subsets that would otherwise need many collections also fit this option, because one collection defines them all.
+
+Use a property filter only when all of these hold: the subsets must be queried together, they can share one collection definition, and an application check of the subset is acceptable. Choose an exact-match property that identifies the subset, such as an organization ID. Search, aggregate and filtered batch delete accept a filter on that property. Object reads, writes and reference edits by ID, and the REST object list, do not. Check that the object belongs to the caller's subset before those operations. Do not rely on a filter in the client or UI to protect a credential with data access to the collection. If every caller may see every object, such as an internal admin-wide search, the filter is optional.
+
+Use a separate collection when a subset needs its own definition, such as a different vectorizer, index type or replication factor, or when a collection is the boundary you want to manage and delete. Use a tenant when the subsets can share one definition and each needs its own lifecycle or a database-enforced data boundary. When a feature spans subsets, the application merges the results.
+
+### Example: a shared workspace
+
+An organization has many members, and the members search one shared workspace. Make the organization the tenant, and store the member as a property. One request then searches the whole workspace. When members must see only their own objects, the application filters on the member property and checks the member on operations that cannot filter.
+
+Making each member a tenant prevents that shared search, because a request covers one tenant. The application would run a separate search for each member and merge the results. A member tenant can have its own lifecycle and tenant-scoped data permissions, but it cannot have its own schema, model or index settings: those are collection settings, so a different definition needs a separate collection. Make that trade only if a member needs a separate lifecycle or a database-enforced per-member data boundary, and measure the fan-out cost first.
+
+### What to measure
+
+- **Query cost**: compare one tenant-scoped query with one filtered query on a shared collection, with the same eligible object count, vector targets, filter selectivity, result limit and query mix. If the measurements are close and the subsets share a definition, the filter avoids the extra requests. If a tenant-scoped data permission or a per-subset lifecycle is required, that requirement decides the boundary before these numbers do.
+- **Index overhead**: memory and disk use of many small tenant indexes against one shared index, and how many tenants stay active. The [resource planning guide](../managing-resources/index.md) covers the components.
+- **Fan-out**: the number of extra requests and the merge and ranking work on the request path when a feature needs more than one tenant. Reconsider tenancy when that work breaks your latency, cost or result-quality target, or when a required permission or lifecycle boundary already decides the choice.
+
 ## Conclusion
 
-While the choice between multi-tenancy and dedicated collections depends on your specific use case, the substantial **performance benefits of multi-tenancy** make it the preferred approach for most scenarios. With multi-tenancy, you gain significant resource efficiency by reducing indexing overhead and streamlining collection definition updates across all tenants.
-
-Although dedicated collections can offer enhanced data isolation and flexibility in certain cases, their operational complexity and increased resource demands often outweigh these benefits. Regularly monitoring query performance, index size, and resource utilization is crucial to fine-tune your architecture, ensuring it meets both current and future needs.
+The choice depends on your data: whether the subsets can share one collection definition, whether any feature needs one result ranked across them, and whether you need to delete, suspend or restrict one subset on its own. Monitor query performance, index size and resource use as the data grows, and revisit the boundary when one of those conditions changes.
 
 ## Further resources
 

@@ -17,7 +17,9 @@ import TenantsGoV6Code from "!!raw-loader!/_includes/code/go-v6/tenants_test.go"
 import CurlCode from "!!raw-loader!/_includes/code/howto/manage-data.multi-tenancy-curl.sh";
 import SkipLink from "/src/components/SkipValidationLink";
 
-Multi-tenancy provides data isolation. Each tenant is stored on a separate shard. Data stored in one tenant is not visible to another tenant. If your application serves many different users, multi-tenancy keeps their data private and makes database operations more efficient.
+Multi-tenancy partitions one collection into tenants. Each tenant is stored on a separate shard, and a search, aggregate or object read request names one tenant, so it reaches that tenant's shard, not another tenant's. A tenant name is a request argument, not a property, so it is not a `where` filter. Batch writes can include objects for several tenants.
+
+Tenancy separates data, but it does not authenticate the caller. A data permission that covers the whole collection allows its granted data actions on any tenant in that collection, so derive the tenant name from the authenticated session, or check in your application that the caller may use the requested tenant. To have Weaviate reject data actions for tenants outside the caller's scope, use a [data permission with a tenant name filter](../configuration/rbac/manage-roles.mdx#data-permissions). The grant covers only the actions the permission lists. Reading or managing the collection definition and its tenants uses separate collection and tenant permissions. Permissions stop at the tenant, not the object, so per-member or per-object rules are application logic.
 
 :::info Tenant status renamed in `v1.26`
 In `v1.26`, the `HOT` status was renamed to `ACTIVE` and the `COLD` status was renamed to `INACTIVE`.

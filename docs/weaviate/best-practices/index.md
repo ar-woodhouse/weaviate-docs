@@ -61,13 +61,15 @@ If using high availability (HA) configurations, consider the following replicati
 
 ### Use multi-tenancy for data subsets
 
-If your use cases involves multiple subsets of data which meet all of the following criteria:
+If your use case involves multiple subsets of data that meet the following criteria, consider enabling multi-tenancy and assigning each subset of data to a separate tenant:
 
 - Have the same data structure (i.e. data schema)
 - Can share the same settings (e.g. vector index, inverted index, vectorizer models, etc.)
 - Do not need to be queried together
 
-Then consider enabling multi-tenancy, and assigning each subset of data to a separate tenant. This will reduce the resource overhead on Weaviate, and allow you to scale more effectively.
+Tenancy also gives each subset its own lifecycle, such as deleting or deactivating one tenant, and a tenant boundary that RBAC can enforce with a data permission that names the tenant. Compared with one collection per subset, one shared definition avoids duplicating the schema and settings. Each tenant still has its own shard and vector index, so many small tenants can use more resources than one shared collection with a filter.
+
+If the subsets must be queried together, can share one collection definition, and an application check of the subset is acceptable, keep them in one collection and filter on an exact-match property that identifies the subset. Search, aggregate and filtered batch delete accept the filter. Object reads, writes and reference edits by ID, and the REST object list, do not. Check the subset in the application for those operations. Do not rely on a filter in the client or UI to protect a credential with data access to the collection. A data permission applies to the collection, not to a property value. If a subset needs its own definition, use a separate collection. If it needs a database-enforced data boundary and the configuration can be shared, use a tenant.
 
 <p align="center"><img src="/img/docs/system/collections_with_without_mt.png" alt="Replication Factor" width="100%"/></p>
 
