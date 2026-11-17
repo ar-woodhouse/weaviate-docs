@@ -24,6 +24,16 @@ With our reranker modules, you can conveniently perform [multi-stage searches](h
 
 In other words, you can perform a search - for example, a vector search - and then use a reranker to re-rank the results of that search. Our reranker modules are compatible with all of vector, bm25, and hybrid searches.
 
+Reranking is a property of the search request, not a separate endpoint. You add a `rerank` to the query and name the property and the query text to score against. The response carries the reranker's score for each object (`rerank_score` in the client APIs, `_additional.rerank.score` in GraphQL). For code in each client, see [How-to: Rerank](../search/rerank.md).
+
+### When to rerank
+
+Reranking improves the order of the results, not their number. The reranker only sees the objects that the first stage returned, so it cannot recover an object that the first stage missed.
+
+- **Raise the candidate count when recall matters.** Set the search `limit` higher than the number of results you want, and let the reranker reorder the larger set. Each candidate is a model call, which adds latency and cost, so tune the candidate count against your latency budget.
+- **Use reranking when the ranking model is stronger than the retrieval model.** A cross-encoder that reads the query and the object together usually ranks better than a vector similarity alone, and it is too expensive to run over the whole collection.
+- **Do not use reranking to fix missing results.** If the right object is not in the first-stage results, change the retrieval stage: the search type, the vectorizer, the filtered set, or `limit`.
+
 ### An example GraphQL query with a reranker
 
 You can use reranking in a GraphQL query as follows:
@@ -53,9 +63,9 @@ You can use reranking in a GraphQL query as follows:
 }
 ```
 
-This query retrieves 10 results from the `JeopardyQuestion` class, using a hybrid search with the query “flying”. It then re-ranks the results using the `answer` property, and the query “floating”.
+This query retrieves 10 results from the `JeopardyQuestion` collection, using a vector search (`nearText`) with the query "flying". It then re-ranks the results by scoring the `answer` property against the query "floating".
 
-You can specify which `property` of the `JeopardyQuestion` class you want to pass to the reranker. Note that here, the returned `score` will include the score from the reranker.
+You can specify which `property` of the `JeopardyQuestion` class you want to pass to the reranker. The returned `score` is the reranker's score for that object.
 
 ## Further resources
 
