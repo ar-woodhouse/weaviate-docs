@@ -38,7 +38,7 @@ import SchemaReplication from '/\_includes/code/schema.things.create.replication
 
 In this example, there are three replicas. If you set the replication factor before you import data, all of the data is replicated three times.
 
-The replication factor can be modified after you add data to a collection. If you modify the replication factor afterwards, new data is copied across the new and pre-existing replica nodes.
+The replication factor can be changed after you add data to a collection, but a collection-definition update does not copy existing data to new replicas. Use [replica movement](/deploy/configuration/replica-movement) (`v1.32` and later) to add a replica and copy the data.
 
 The example data schema has a [write consistency](/weaviate/concepts/replication-architecture/consistency.md#tunable-write-consistency) level of `ALL`. When you upload or update a schema, the changes are sent to `ALL` nodes (via a coordinator node). The coordinator node waits for a successful acknowledgment from `ALL` nodes before sending a success message back to the client. This ensures a highly consistent schema in your distributed Weaviate setup.
 
@@ -124,7 +124,7 @@ curl "http://localhost:8080/v1/objects/{ClassName}/{id}?consistency_level=ONE"
 ```
 
 :::note
-In v1.17, only [read queries that get data by ID](/weaviate/manage-objects/read.mdx#get-an-object-by-id) had a tunable consistency level. All other object-specific REST endpoints (read or write) used the consistency level `ALL`. Starting with v1.18, all write and read queries are tunable to either `ONE`, `QUORUM` (default) or `ALL`. GraphQL endpoints use the consistency level `ONE` (in both versions).
+In v1.17, only [read queries that get data by ID](/weaviate/manage-objects/read.mdx#get-an-object-by-id) had a tunable consistency level. All other object-specific REST endpoints (read or write) used the consistency level `ALL`. Starting with v1.18, all write and read queries are tunable to either `ONE`, `QUORUM` (default) or `ALL`. GraphQL endpoints default to the consistency level `QUORUM`.
 :::
 
 import QueryReplication from '/\_includes/code/replication.get.object.by.id.mdx';

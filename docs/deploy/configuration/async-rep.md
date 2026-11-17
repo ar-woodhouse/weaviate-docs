@@ -52,7 +52,7 @@ Globally disables the entire async replication feature.
 #### `ASYNC_REPLICATION_SCHEDULER_WORKERS`
 Sets the number of workers in the cluster-wide pool that the async replication scheduler uses to run hashbeat work across all shards and tenants.
 
-- Its default value is `10`. The maximum is `100`.
+- Its default value is `1`. The maximum is `100`.
 - **Use case**: A single bounded worker pool replaces the previous per-shard goroutines, so this is the main lever for capping async replication's total concurrency and preventing resource exhaustion on clusters with many collections or tenants.
 - **Special Considerations**:
   - This is a cluster-wide setting. There is no per-collection worker count; collections share this single pool.
@@ -64,7 +64,7 @@ Sets the number of workers in the cluster-wide pool that the async replication s
 #### `ASYNC_REPLICATION_HASHTREE_INIT_CONCURRENCY`
 Sets how many shards may initialize (build) their hash tree concurrently when async replication starts up.
 
-- Its default value is `100`.
+- Its default value is `10`.
 - **Use case**: Bounds the burst of work when many shards begin async replication at once, for example after a node restart or when many replicated collections exist.
 
 </details>

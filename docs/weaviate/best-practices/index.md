@@ -56,7 +56,7 @@ For environments with high reliability requirements, high query loads or latency
 
 If using high availability (HA) configurations, consider the following replication settings:
 
-- **Replication factor**: Set the replication factor to an odd number to ensure quorum (majority of cluster size) is possible without excessive replication. Note: If the number of nodes is fewer than the replication factor, Weaviate will not start.
+- **Replication factor**: Set the replication factor to an odd number so that `QUORUM` (a majority of a shard's replicas, `n/2 + 1`) is possible without excessive replication. Note: a collection whose replication factor is larger than the number of available nodes fails at creation with `could not find enough weaviate nodes for replication`.
 - **Deletion strategy**: Use a deletion strategy that fits your use case. The `NoAutomatedResolution` strategy is generally recommended.
 
 ### Use multi-tenancy for data subsets
