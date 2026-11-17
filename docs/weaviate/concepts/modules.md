@@ -18,7 +18,7 @@ The core of Weaviate, without any modules attached, is a pure vector-native data
 
 Data is stored in Weaviate as the combination of an object and its vector, and these vectors are searchable by the provided [vector index algorithm](../concepts/indexing/vector-index.md). Without any vectorizer modules attached, Weaviate does not know how to *vectorize* an object, i.e. *how* to calculate the vectors given an object.
 
-Depending on the type of data you want to store and search (text, images, etc.), and depending on the use case (like search, question answering, etc., depending on language, classification, ML model, training set, etc.), you can choose and attach a vectorizer module that best fits your use case. Or, you can "bring your own" vectors to Weaviate.
+Choose a vectorizer module for the data type, the language and the task, or "bring your own" vectors to Weaviate. A module that is enabled on the server only makes the capability available: each collection or named vector sets its own vectorizer, and Weaviate generates no vectors for a target without a vectorizer. See [Choosing and evaluating an embedding setup](../model-providers/index.md#choosing-and-evaluating-an-embedding-setup) to pick a route and keep document and query vectors compatible.
 
 This page explains what modules are, and what purpose they serve in Weaviate.
 

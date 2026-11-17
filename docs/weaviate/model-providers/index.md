@@ -68,9 +68,9 @@ import AcademyAdmonition from '@site/src/components/AcademyAdmonition';
 
 ## How does Weaviate generate embeddings?
 
-When a model provider integration for embeddings is enabled, Weaviate automatically generates embeddings for objects that are added to the database.
+Weaviate generates a vector only when the collection selects a model integration as the vectorizer for that target: the default vector, or a named vector. Enabling an integration on the server adds the capability, but it does not set a vectorizer on any collection, and there is no instance-wide default vectorizer. A vector that you supply for a target is kept. A target whose vectorizer is `none` stores an object that arrives without a vector, and vector search on that target does not return the object.
 
-This is done by providing the source data to the integration provider, which then returns the embeddings to Weaviate. The embeddings are then stored in the Weaviate Database.
+For a text vectorizer, Weaviate composes the input text from the object, sends it to the integration provider, and stores the returned vector with the object.
 
 ```mermaid
 %%{init: {
@@ -135,6 +135,65 @@ If you prefer the text to be lowercased, you can do so by setting the `LOWERCASE
 The text is always lowercased for the `text2vec-contextionary` integration.
 :::
 
+## Choosing and evaluating an embedding setup
+
+This guidance applies to text vectorizers. Multimodal and multi-vector integrations build other inputs, so check the integration page.
+
+### Choose a vectorization route
+
+Use an integrated [vectorizer](/weaviate/manage-collections/vector-config#specify-a-vectorizer) when all of these conditions hold:
+
+- The object text contains the passage that should match a query.
+- The integration offers an encoder for your data type and language.
+- Sending that text to the provider, or running the model in your own cluster with a [locally hosted integration](#locally-hosted), meets your data-handling requirements.
+- The provider's charges and rate limits fit your import and query volume.
+
+Provide the vectors yourself when any of these conditions holds:
+
+- Another system already produces the vectors, or must use the same vectors.
+- You need an encoder or an input format that no integration provides.
+- You need an encoded input that the integration cannot produce, for example a custom prefix or a field order that differs from the integration's composition.
+
+A supplied vector is not private by itself: text that you sent to an external embedding service has already left your infrastructure. Where the model runs, and what the provider keeps, decide the data flow, so check the provider's terms before you send production text.
+
+You can do both, per target. Weaviate keeps a vector that you supply for a target and generates a vector only for an object that arrives without one for that target. Each target has its own vector index, so a collection can combine generated and supplied targets; within a target, use compatible encoders.
+
+### Keep document and query vectors compatible
+
+The stored vectors and the query vectors must be compatible for the same intended vector space. Compatibility comes from the encoders and their settings, not from a vendor name, a model name or a matching dimension count. Record these for each target:
+
+- **Encoder and version.** A new model version, a different preprocessing step or a different fine-tune can produce a different space. The same model name from two providers is not proof of compatibility; check the provider's model, version and normalization.
+- **Output dimensions.** If the integration has a `dimensions` setting, use the same value for every vector in that target. If you call the provider yourself, match its output-dimension setting.
+- **Document and query modes.** Many retrieval models take a stored document and a query in different modes. For example, the Cohere integration encodes imported text with `search_document` and query text with `search_query`. When you supply vectors, encode the stored text in the model's document mode and the query text in its query mode. Check the model's documentation: Voyage AI states that embeddings generated with and without its `input_type` argument are compatible, and it recommends that you set the argument. A jointly trained multimodal model can pair different encoders for text and images.
+- **Indexed input.** For a text vectorizer, Weaviate builds one string from the object: the included properties in alphabetical order, joined with spaces, plus the property names and the collection name if the configuration adds them. See [the rules above](#how-does-weaviate-generate-embeddings). If you mix supplied and generated vectors in one target, or you want the same vectors as the integration, build the string the same way. A target that holds only vectors you supply can use another input construction, as long as your query vectors use the same encoder and the same convention. `source_properties` selects the properties; it does not set their order.
+
+Weaviate checks the vector length and shape, not the encoder. A vector whose length differs from the vectors already in the index is rejected. A vector from an unrelated encoder that has the same number of dimensions is accepted without an error, so incompatible vectors can return unrelated results and nothing reports the problem. These rules apply per target, because each target has its own index and its own space.
+
+### Keep the input within the model limit
+
+A text vectorizer sends one input per object per target and does not split long text. A long document stored as one object is therefore one vector, and it does not create independently searchable passages.
+
+If the input is longer than the model accepts, the outcome depends on the integration. Cohere discards the end of the input by default (`truncate: "END"`), and Voyage AI truncates by default (`truncate: true`). Other integrations have their own input limit and truncation behaviour, so check the model's limit and the integration's parameters.
+
+Choose the retrieval unit before you embed. To find a passage inside a document, store passages as separate objects. A chunk is a separate object with its own vector and storage cost, and an integration or your own code can embed it, so chunking does not by itself require caller-provided vectors. Setting truncation to fail detects input that would be cut, but it does not make a long document searchable: split or shorten the input, then import again.
+
+### Evaluate a change on your own queries
+
+1. Collect queries that you did not use while designing the schema and the chunks, and the objects that a person judges relevant. Fix the corpus and the relevance unit for a model comparison: if you change chunk boundaries, relabel, or map the labels to the source document. State the quality floor that a valid result must meet, and the latency, cost and data-handling limits.
+2. Run each configuration on the same queries with the same `limit`, distance metric and filters. For the model comparison, use a [flat index](/weaviate/config-refs/indexing/vector-index.mdx#flat-index) with no quantizer: set `skipDefaultQuantization: true` (`Configure.VectorIndex.Quantizer.none()` in the Python client) and configure neither `bq` nor `rq`. A flat index without a quantizer compares every vector, so the ranking comes from the encoder and not from an approximate search. If the representation cannot use a flat index, treat the comparison as approximate and change one search setting at a time.
+3. Record two measures:
+   - Success at k: the share of queries with at least one relevant result in the top k results.
+   - nDCG at k: how close to the top the relevant results appear.
+4. When a query fails, check the likely causes before you change the encoder:
+   - Confirm that the relevant text was in the indexed input. If truncation cut it, change the chunk or the input length.
+   - Remove the filter and repeat the query. If the object then appears, investigate the filter before you change the encoder: check that the object matches the predicate and that the filtered property is indexed, because removing a filter changes eligibility and the search plan. To separate a filter effect from approximation, repeat both queries on the flat-index reference collection. See the [vector index settings](/weaviate/config-refs/indexing/vector-index.mdx).
+   - If the object is returned but ranks below unrelated objects, compare several labeled queries before you change anything. The query mode, the input text or the chunk can cause it as well as the encoder.
+5. Compare each configuration against the quality floor and the constraints, and inspect the important regressions. Do not require every measure to improve: a cheaper or faster configuration that still meets the floor is a valid choice.
+
+Published benchmark results are a coarse prior. [MTEB](https://arxiv.org/abs/2210.07316) finds that "no particular text embedding method dominates across all tasks", and [BEIR](https://arxiv.org/abs/2104.08663) reports that dense retrieval models often underperform when they are applied to new domains. Neither predicts your data.
+
+Change the representation and the search separately. The encoder, the input text and the chunk size change the vectors; `ef`, quantization and compression change the search over those vectors. Test the two groups apart. To move an existing collection to another model, see [Switching vectorizers](/weaviate/tutorials/vectorizer-migration).
+
 ## Rate limits for API-based embeddings
 
 Model providers throttle how fast you can call them, so a large import often ends in `429` errors. To keep Weaviate inside your quota, tell it what the quota is with two request headers:
@@ -150,13 +209,9 @@ The headers are read by the Cohere, Databricks, DigitalOcean, Jina AI, Mistral, 
 
 ## Troubleshooting: a missing or misconfigured API key
 
-Every API-based integration reports a missing key the same way. If the key is absent, the request fails with:
+Credential sources, prerequisites and error messages differ by integration. For example, Cohere reads `X-Cohere-Api-Key` or `COHERE_APIKEY`, and a key in the header takes precedence; AWS reads `X-Aws-Access-Key` and `X-Aws-Secret-Key`, or `AWS_*` environment variables; and Google on Vertex AI with Google authentication uses Application Default Credentials instead of an API key.
 
-```
-no api key found neither in request header: X-<Provider>-Api-Key nor in environment variable under <PROVIDER>_APIKEY
-```
-
-The API key is never part of the collection configuration, so supply it as a request header when you connect, or set the environment variable on the Weaviate server. A key in the header takes precedence over the environment variable.
+Use the credential method that the integration's page documents. Keep credentials out of the collection configuration: Weaviate does not read them there. Read the credential section of your integration's page for the exact names and prerequisites.
 
 ## Questions and feedback
 
