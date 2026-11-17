@@ -28,7 +28,7 @@ These settings help in optimizing Weaviate's performance by balancing resource u
 The CPU has a direct effect on query and import speed, but does not affect dataset size.
 :::
 
-Vector search is the most CPU intensive process in Weaviate operations. Queries are CPU-bound, but imports are also CPU-bound because imports rely on vector search for indexing. Weaviate uses the HNSW (Hierarchical Navigable Small World) algorithm to index vectors. You can [tune the HNSW index](../config-refs/indexing/vector-index.mdx) on a per collection basis in order to maximize performance for your primary use case.
+Vector search is the most CPU intensive process in Weaviate operations. Queries are CPU-bound, but imports are also CPU-bound because imports rely on vector search for indexing. Weaviate indexes vectors with the HNSW (Hierarchical Navigable Small World) algorithm by default, and also supports the disk-based flat and HFresh indexes. You can [tune the HNSW index](../config-refs/indexing/vector-index.mdx) on a per collection basis in order to maximize performance for your primary use case.
 
 To use multiple CPUs efficiently, create multiple shards for your collection. For the fastest imports, create multiple shards even on a single node.
 
@@ -43,10 +43,16 @@ When search throughput is limited, add CPUs to increase the number of queries pe
 ## The role of memory
 
 :::tip Rule of thumb
-Memory determines the maximum supported dataset size. Memory does not directly influence query speed.
+For an HNSW index, memory determines how much of the dataset stays in memory, and therefore how much of each query is served from disk. Memory does not directly influence query speed while the working set fits in cache.
 :::
 
-The HNSW index must be stored in memory. The memory required is directly related to the size of your dataset. There is no correlation between the size of your dataset and the current query load. You can use [`product quantization (PQ)`](/weaviate/concepts/vector-quantization#product-quantization) to compress the vectors in your dataset and increase the number of vectors you can hold in memory. If memory is your main constraint, the disk-based [HFresh index](/weaviate/concepts/vector-index#hfresh-index) is another option.
+How much memory a collection needs depends on its index type:
+
+- **HNSW** keeps the vectors and the graph in memory, up to [`vectorCacheMaxObjects`](../config-refs/indexing/vector-index.mdx). Vectors past that limit are read from disk, which is much slower.
+- **Flat** keeps the vectors on disk and maps them into memory, so memory use depends on how much of the data the workload touches, not on the dataset size.
+- **HFresh** keeps its posting lists on disk and keeps the smaller centroid index in memory.
+
+For an HNSW index, [quantization](/weaviate/concepts/vector-quantization) reduces the memory each vector needs, and the disk-based [HFresh index](/weaviate/concepts/vector-index#hfresh-index) avoids holding the vectors in memory at all. The size of the dataset does not correlate with the current query load, so plan memory for the data, not for the traffic.
 
 Weaviate lets you configure a limit to the number of vectors held in memory in order to prevent unexpected Out-of-Memory ("OOM") situations. The default value is one trillion (`1e12`) objects per collection. To adjust the number of objects, update the value of [`vectorCacheMaxObjects`](../config-refs/indexing/vector-index.mdx) in your index settings.
 
@@ -62,7 +68,7 @@ The HNSW vector index is the primary driver of memory usage. These factors influ
 ### An example calculation
 
 :::note
-The following calculation assumes that you want to hold all vectors in memory. For a hybrid approach that combines in memory and on-disk storage, see [Vector Cache](#vector-cache) below.
+The following calculation assumes an uncompressed HNSW index and that you want to hold all vectors in memory. Quantization divides the per-vector term, as the table below shows. For a hybrid approach that combines in-memory and on-disk storage, see [Vector Cache](#vector-cache) below.
 :::
 
 To estimate your memory needs, use the following rule of thumb:
@@ -81,7 +87,18 @@ For a more accurate calculation, include a factor for the [`maxConnections`](../
 
 For example, if `maxConnections` is 64 and the other values are the same, a more accurate memory estimate is `1e6 * (1536B + (64 * 10)) = 2.2 GB`.
 
-The estimate that includes `maxConnections` is smaller than the rule of thumb estimate. However, the `maxConnections` estimate doesn't account for garbage collection. Garbage collection adds overhead that is explained in the next section.
+The estimate that includes `maxConnections` is smaller than the rule of thumb estimate. However, the `maxConnections` estimate doesn't account for garbage collection.
+
+Quantization changes the per-vector term, not the connection overhead. These multipliers are approximate:
+
+| Compression | Bytes per 1024-dimensional vector | 1M vectors |
+|-------------|-----------------------------------|------------|
+| None (`float32`) | 4096 B | ~4 GB |
+| PQ, SQ (8-bit) | ~1 KB | ~1 GB |
+| RQ 4-bit | 512 B | ~0.5 GB |
+| BQ, RQ 1-bit | 128 B | ~0.125 GB |
+
+For example, one million 1024-dimensional vectors need about 4 GB uncompressed, but about 0.125 GB with 1-bit quantization, before the connection overhead and the rest of the collection are added. Garbage collection adds overhead that is explained in the next section.
 
 ## Effects of garbage collection
 
@@ -103,7 +120,7 @@ To avoid out-of-memory issues during imports, set `LIMIT_RESOURCES` to `True` or
 
 The following tactics can help to reduce Weaviate's memory usage:
 
-- **Use vector compression**. Product quantization (PQ) is a technique that reduces the size of vectors. Vector compression impacts recall performance, so we recommend testing PQ on your dataset before using it in production. <br/><br/> For more information, see [Product Quantization](/weaviate/concepts/vector-quantization). <br/> To configure PQ, see [Compression](../configuration/compression/pq-compression.md).
+- **Use vector compression**. Quantization stores each vector in fewer bits. Product quantization (PQ) and scalar quantization (SQ) use about a quarter of the original size, rotational quantization (RQ) with 4 bits uses about an eighth, and binary quantization (BQ) or RQ with 1 bit uses about a thirty-second. Compression trades recall for memory, and the loss depends on the data and the quantizer, so test it on your dataset before you use it in production. <br/><br/> For an overview, see [Vector quantization](/weaviate/concepts/vector-quantization). <br/> To configure a quantizer, see [Compression](../configuration/compression/index.md).
 
 - **Reduce the dimensionality of your vectors.** The most effective approach to reducing memory size, is to reduce the number of dimensions per vector. If you have high dimension vectors, consider using a model that uses fewer dimensions. For example, a model that has 384 dimensions uses far less memory than a model with 1536 dimensions.
 
