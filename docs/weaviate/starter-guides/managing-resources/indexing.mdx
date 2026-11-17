@@ -14,14 +14,15 @@ Vector indexes can use *hot* or *warm* resources, depending on the index type. I
 
 :::tip Indexing recommendations
 
-- For multi-tenant configurations, use a [dynamic index](#dynamic-indexes).
-- Consider the size of your data set when choosing an index type:
-    - If your object count is low, consider a flat index.
-    - For larger data sets, use an HNSW index.
-    - If you are unsure, use a dynamic index.
+- Choose the index type on the resource that binds first. See [Comparison between index types](../../concepts/indexing/vector-index.md#comparison-between-index-types).
+    - Memory is tight: use an [HFresh index](#hfresh-indexes). It keeps only a compressed centroid index in memory.
+    - Data stays small (thousands of objects, or one small tenant per end user): consider a flat index.
+    - Data is large and latency matters most: use an HNSW index.
+    - Data or tenants start small and grow: use a [dynamic index](#dynamic-indexes). It needs asynchronous indexing and converts one way, from flat to HNSW.
 - If you can trade off some accuracy, consider using [compression](./compression.mdx):
-    - For HNSW indexes, [PQ](../../configuration/compression/pq-compression.md)/[SQ](../../configuration/compression/sq-compression.md)/[BQ](../../configuration/compression/bq-compression.md) can reduce memory requirements.
-    - For flat indexes, [binary quantization (BQ)](../../configuration/compression/bq-compression.md) can improve search speeds.
+    - For HNSW indexes, start with [8-bit RQ](../../configuration/compression/rq-compression.md). It needs no training and keeps 98-99% recall. [PQ](../../configuration/compression/pq-compression.md), [SQ](../../configuration/compression/sq-compression.md), [BQ](../../configuration/compression/bq-compression.md) and the narrower [RQ](../../configuration/compression/rq-compression.md) widths are also available.
+    - For flat indexes, [RQ](../../configuration/compression/rq-compression.md) and [BQ](../../configuration/compression/bq-compression.md) can improve search speeds.
+    - For HFresh indexes, RQ is built in and cannot be changed.
 - Consider your query needs when configuring inverted indexes:
     - If disk space is not a concern, [index all properties](#property-level-configuration) for searching & filtering.
     - If metadata filtering is important, index it [at the collection level](#collection-level-configuration).
@@ -158,7 +159,7 @@ To configure indexing, follow the steps on these pages:
 For more documentation details, see:
 
 - [Vector indexing](/weaviate/concepts/vector-index)
-- [Inverted indexes](/weaviate/concepts/indexing)
+- [Inverted indexes](/weaviate/concepts/indexing/inverted-index.md)
 
 ## Questions and feedback
 

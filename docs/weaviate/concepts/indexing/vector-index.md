@@ -256,7 +256,7 @@ HFresh works by:
 
 This approach can provide memory efficiency benefits for large datasets while maintaining good search performance. The key trade-off is between memory usage and search recall, controlled by parameters like `searchProbe` (number of posting lists to search) and `replicas` (number of posting lists each vector is added to).
 
-Only the centroid index stays in memory, compressed with 8-bit [rotational quantization (RQ)](../vector-quantization.md#rotational-quantization). The posting lists are stored on disk, compressed with 1-bit RQ. A query searches the in-memory centroid index to pick a few relevant postings, reads only those postings from disk, and rescores the top candidates against the uncompressed vectors. Because only a small subset of the data is read per query, disk I/O stays bounded and latency stays predictable as the dataset grows. HFresh also rebalances its posting lists in the background as data changes, so it does not require periodic full index rebuilds.
+Only the centroid index stays in memory, compressed with 8-bit [rotational quantization (RQ)](../vector-quantization.md#rotational-quantization). The posting lists are stored on disk, compressed with 1-bit RQ. Each vector is written to `replicas` posting lists (default `4`), so plan disk for about four times the 1-bit code size, plus the centroid index and the per-posting overhead. A lower `replicas` value reduces disk use at the cost of recall. A query searches the in-memory centroid index to pick a few relevant postings, reads only those postings from disk, and rescores the top candidates against the uncompressed vectors. Because only a small subset of the data is read per query, disk I/O stays bounded and latency stays predictable as the dataset grows. HFresh also rebalances its posting lists in the background as data changes, so it does not require periodic full index rebuilds.
 
 HFresh is particularly well-suited for:
 
@@ -343,15 +343,15 @@ Here's a quick guide to choosing the right index:
 
 #### Comparison between index types
 
-| Feature                       | Flat                             | HNSW                        | HFresh                                              |
-| ----------------------------- | -------------------------------- | --------------------------- | --------------------------------------------------- |
-| Multi-vector support          | No                               | Yes, MUVERA optional        | Yes, MUVERA required                                |
-| Memory usage                  | Very low                         | High                        | Low                                                 |
-| Search speed (small datasets) | Fast                             | Very fast                   | Moderate                                            |
-| Search speed (large datasets) | Slow                             | Very fast                   | Fast                                                |
-| Disk usage                    | Low                              | Moderate                    | Moderate to high                                    |
-| Maintenance                   | None                             | Costlier as the graph grows | Self-balancing in the background, no full rebuilds  |
-| Best for                      | Small collections, multi-tenancy | Large collections, high QPS | Memory-constrained deployments, any size (disk-backed) |
+| Feature                       | Flat                             | HNSW                        | Dynamic                                    | HFresh                                              |
+| ----------------------------- | -------------------------------- | --------------------------- | ------------------------------------------ | --------------------------------------------------- |
+| Multi-vector support          | No                               | Yes, MUVERA optional        | No                                         | Yes, MUVERA required                                |
+| Memory usage                  | Cache only                       | High: the whole index       | Flat until conversion, then HNSW           | Low: the centroid index only                        |
+| Search speed (small datasets) | Fast                             | Very fast                   | Fast                                       | Moderate                                            |
+| Search speed (large datasets) | Slow                             | Very fast                   | Very fast after conversion                 | Fast                                                |
+| Disk usage                    | Low                              | Moderate                    | Both layouts until conversion              | `replicas` x 1-bit codes, 4 by default              |
+| Maintenance                   | None                             | Costlier as the graph grows | One-way conversion, needs async indexing   | Self-balancing in the background, no full rebuilds  |
+| Best for                      | Small collections, multi-tenancy | Large collections, high QPS | Collections or tenants that start small    | Memory-constrained deployments, any size (disk-backed) |
 
 Note that the vector index type parameter only specifies how the vectors of data objects are _indexed_. The index is used for data retrieval and similarity search.
 
