@@ -57,7 +57,7 @@ For environments with high reliability requirements, high query loads or latency
 If using high availability (HA) configurations, consider the following replication settings:
 
 - **Replication factor**: Set the replication factor to an odd number so that `QUORUM` (a majority of a shard's replicas, `n/2 + 1`) is possible without excessive replication. Note: a collection whose replication factor is larger than the number of available nodes fails at creation with `could not find enough weaviate nodes for replication`.
-- **Deletion strategy**: Use a deletion strategy that fits your use case. The `NoAutomatedResolution` strategy is generally recommended.
+- **Deletion strategy**: Keep the default `TimeBasedResolution` for most workloads, so that the most recent write or delete wins. Use `DeleteOnConflict` if a delete must always win, and `NoAutomatedResolution` only if you resolve conflicts outside Weaviate, because it can restore an object on replicas that missed the delete.
 
 ### Use multi-tenancy for data subsets
 
